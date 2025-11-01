@@ -32,18 +32,74 @@ codeunit 50000 "Interactive Code Runner Impl"
     end;
 
     procedure GetHelpContent(): Text
+    var
+        TypeHelper: Codeunit "Type Helper";
+        LF: Text;
+        HelpText: Text;
     begin
-        exit('AL INTERPRETER - TOOLBOX COMPATIBLE' + '\n\n' +
-             'DATA TYPES: Integer, Text, Code, Boolean, Date, DateTime, Decimal, Record, Char, BigText, GUID, Option, Duration, Blob' + '\n\n' +
-             'VARIABLES: Counter: Integer; Name: Text; IsActive: Boolean; Price: Decimal; OrderDate: Date; Customer: Record Customer;' + '\n\n' +
-             'ASSIGNMENTS: Counter := 10; Name := ''Hello''; Customer.Name := ''Test'';' + '\n\n' +
-             'LOOPS: repeat ... until Condition; for i := 1 to 10 do ...; while Condition do ...;' + '\n\n' +
-             'CONTROL FLOW: if Condition then ... else ...; exit; break; continue;' + '\n\n' +
-             'RECORD OPERATIONS: Customer.FindSet(); Customer.Next(); Customer.SetRange(''No.'', ''10000''); Customer.CalcFields(Balance); Customer.IsEmpty; Customer.Count; Customer.Insert(); Customer.Modify(); Customer.Delete();' + '\n\n' +
-             'STRING FUNCTIONS: StrLen(Text); CopyStr(Text, Start, Length); UpperCase(Text); LowerCase(Text); Pos(SubStr, Text); DelChr(Text, Char);' + '\n\n' +
-             'MATH FUNCTIONS: Abs(Number); Round(Number, Precision); Power(Base, Exponent); Min(Val1, Val2); Max(Val1, Val2);' + '\n\n' +
-             'SYSTEM FUNCTIONS: Message(Text); Today(); Time(); CurrentDateTime(); UserId(); CompanyName(); Format(Value);' + '\n\n' +
-             'Supports most features from Erik''s ToolBox!');
+        LF := TypeHelper.LFSeparator();
+
+        HelpText := '=== Interactive AL Code Runner - Quick Reference ===' + LF + LF +
+                    'Welcome! This tool lets you write and execute AL code directly in Business Central.' + LF +
+                    'No compilation or deployment required - perfect for quick diagnostics and learning!' + LF + LF +
+
+                    '--- Data Types ---' + LF +
+                    'Integer, Decimal, Text, Code, Boolean, Date, DateTime, Duration' + LF +
+                    'Char, BigText, GUID, Option, Blob, Record <Table>' + LF + LF +
+
+                    '--- Variable Declaration ---' + LF +
+                    'Counter: Integer;' + LF +
+                    'CustomerName: Text;' + LF +
+                    'IsActive: Boolean;' + LF +
+                    'Price: Decimal;' + LF +
+                    'Customer: Record Customer;' + LF + LF +
+
+                    '--- Control Flow ---' + LF +
+                    'if Condition then ... [else ...];' + LF +
+                    'repeat ... until Condition;' + LF +
+                    'for Index := 1 to 10 [step 2] do ...;' + LF +
+                    'while Condition do ...;' + LF +
+                    'begin ... end;' + LF +
+                    'exit; break; continue;' + LF + LF +
+
+                    '--- Record Operations ---' + LF +
+                    'Customer.FindSet(); Customer.FindFirst(); Customer.FindLast();' + LF +
+                    'Customer.Next(); Customer.Reset();' + LF +
+                    'Customer.SetRange("No.", 10000);' + LF +
+                    'Customer.SetFilter(Name, ''A*'');' + LF +
+                    'Customer.CalcFields(Balance); Customer.CalcSums(Amount);' + LF +
+                    'Customer.IsEmpty(); Customer.Count();' + LF +
+                    'Customer.Insert(true); Customer.Modify(true); Customer.Delete(true);' + LF + LF +
+
+                    '--- String Functions ---' + LF +
+                    'StrLen(Text), CopyStr(Text, Start, Length), UpperCase(Text), LowerCase(Text)' + LF +
+                    'StrPos(Text, SubText), DelChr(Text, Where, Which), InsStr(Text, Insert, Position)' + LF + LF +
+
+                    '--- Math Functions ---' + LF +
+                    'Abs(Value), Round(Value, Precision), Power(Base, Exponent)' + LF +
+                    'Min(Val1, Val2), Max(Val1, Val2)' + LF + LF +
+
+                    '--- System Functions ---' + LF +
+                    'Message(''Text %1'', Arg);  // Supports %1-%9 placeholders' + LF +
+                    'Format(Value), Today(), Time(), CurrentDateTime()' + LF +
+                    'UserId(), CompanyName(), CreateGuid()' + LF + LF +
+
+                    '--- Common Patterns ---' + LF +
+                    '// Loop through records:' + LF +
+                    'if Customer.FindSet() then' + LF +
+                    '  repeat' + LF +
+                    '    Message(Customer.Name);' + LF +
+                    '  until Customer.Next() = 0;' + LF + LF +
+
+                    '--- Runtime Limits ---' + LF +
+                    'Up to 100 variables, 10 record references per script' + LF +
+                    'Loops automatically stop after 10,000 iterations' + LF +
+                    'Execution stops at the first error encountered' + LF + LF +
+
+                    'Tip: Use the "Load Sample" action to see working examples!' + LF +
+                    'Tip: Enable "Show output in console" to suppress GUI dialogs.';
+
+        exit(HelpText);
     end;
 
     procedure SaveCodeToBlob(var InteractiveProgram: Record "Interactive Program"; CodeText: Text)
