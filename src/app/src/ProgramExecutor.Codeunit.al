@@ -694,13 +694,19 @@ codeunit 50001 "Program Executor"
                 // Skip ELSE branch
                 CurrentTokenIndex := FindStatementEnd(ElseIndex + 1);
             end else begin
-                exit(ParseStatement());
+                // Execute THEN statement, but continue execution after it
+                if not ParseStatement() then
+                    exit(false);
+                // CurrentTokenIndex is already advanced by ParseStatement()
             end;
         end else begin
             // Skip THEN branch, execute ELSE if exists
             if ElseIndex > 0 then begin
                 CurrentTokenIndex := ElseIndex + 1;
-                exit(ParseStatement());
+                // Execute ELSE statement, but continue execution after it
+                if not ParseStatement() then
+                    exit(false);
+                // CurrentTokenIndex is already advanced by ParseStatement()
             end else begin
                 // Skip THEN statement
                 CurrentTokenIndex := FindStatementEnd(ThenStartIndex);
@@ -1279,7 +1285,7 @@ codeunit 50001 "Program Executor"
         end;
 
         // Some methods require field names as strings, not evaluated expressions
-        IsCalcFields := LowerCase(MethodName) = 'calcfields';
+        IsCalcFields := (LowerCase(MethodName) = 'calcfields') or (LowerCase(MethodName) = 'calcsums');
 
         // Parse arguments
         if GetCurrentToken() <> ')' then begin
@@ -1395,6 +1401,19 @@ codeunit 50001 "Program Executor"
                     end;
                     // Calculate all specified fields
                     if not ExecuteCalcFields(RecRef, Args) then
+                        exit(false);
+                    Result := 'true';
+                    exit(true);
+                end;
+            'calcsums':
+                begin
+                    // CalcSums calculates sums of SumIndexFields
+                    if Args.Count < 1 then begin
+                        SetError('CalcSums requires at least 1 field name');
+                        exit(false);
+                    end;
+                    // Calculate sums using CalcSum (different from CalcFields)
+                    if not ExecuteCalcSums(RecRef, Args) then
                         exit(false);
                     Result := 'true';
                     exit(true);
@@ -1528,6 +1547,29 @@ codeunit 50001 "Program Executor"
 
             FieldRef := RecRef.Field(FieldNo);
             FieldRef.CalcField();
+        end;
+
+        exit(true);
+    end;
+
+    local procedure ExecuteCalcSums(var RecRef: RecordRef; FieldNames: List of [Text]): Boolean
+    var
+        FieldRef: FieldRef;
+        FieldNo: Integer;
+        i: Integer;
+        FieldName: Text;
+    begin
+        // Calculate sum for each specified field
+        for i := 1 to FieldNames.Count do begin
+            FieldName := FieldNames.Get(i);
+            FieldNo := GetFieldNumber(RecRef, FieldName);
+            if FieldNo = 0 then begin
+                SetError('Field not found for CalcSums: ' + FieldName);
+                exit(false);
+            end;
+
+            FieldRef := RecRef.Field(FieldNo);
+            FieldRef.CalcSum();
         end;
 
         exit(true);
@@ -1911,18 +1953,24 @@ codeunit 50001 "Program Executor"
     var
         i: Integer;
         NestLevel: Integer;
+        Token: Text;
     begin
         NestLevel := 0;
         for i := StartIndex to TokenList.Count do begin
-            case LowerCase(TokenList.Get(i)) of
-                'begin', 'if', 'repeat':
+            Token := LowerCase(TokenList.Get(i));
+
+            case Token of
+                'begin', 'repeat':
                     NestLevel += 1;
                 'end', 'until':
-                    NestLevel -= 1;
+                    if NestLevel > 0 then
+                        NestLevel -= 1;
             end;
+
             if (NestLevel = 0) and (TokenList.Get(i) = ';') then
                 exit(i + 1);
         end;
+
         exit(TokenList.Count);
     end;
 
