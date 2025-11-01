@@ -1,100 +1,54 @@
-# Test Code
+# Test Suite Overview
 
-This folder contains all test codeunits and test-related files for the Interactive AL Code Runner extension.
+This directory contains automated verification for the Interactive AL Code Runner. The tests validate both the interpreter core and higher-level script scenarios so we can confidently evolve parsing logic, built-in functions, and record handling.
 
-## Test Structure
+## What the Interpreter Does
 
-The test suite is organized into three main test codeunits:
+The runtime tokenises AL text, builds an in-memory execution plan, and evaluates statements sequentially. Tests focus on ensuring:
 
-### 1. Program Executor Tests (Codeunit 50100)
-Comprehensive unit tests for the core interpreter functionality:
-- **Variable Management**: Variable declarations, assignments, and type handling
-- **Expression Evaluation**: Arithmetic, comparison, and logical operators
-- **Control Structures**: If/then/else statements, repeat/until loops, begin/end blocks
-- **Built-in Functions**: Message(), string functions, math functions, system functions
-- **Error Handling**: Division by zero, undefined variables, invalid syntax
-- **Advanced Features**: Expression precedence, parenthesized expressions, unary operators, nested statements
+- Variables honour declared data types and default initialisation.
+- Expressions, operators, and control flow behave like native AL.
+- Built-in helper functions (string, math, system) return consistent results.
+- Record methods (FindSet, SetRange, CalcFields, etc.) surface friendly errors when misused.
+- Error reporting prefixes messages with `Error:` for easy assertion.
 
-### 2. Record Operations Tests (Codeunit 50101)
-Tests for record-related operations:
-- **Record Methods**: FindSet(), FindFirst(), FindLast(), Next(), Reset()
-- **Record Filtering**: SetRange(), SetFilter()
-- **Field Operations**: Field access, field assignment, quoted field names
-- **Record Properties**: IsEmpty(), Count()
-- **Record Loops**: Iterating through records with FindSet()
-- **Multiple Records**: Handling multiple record variables
+## Codeunit Inventory
 
-### 3. Script Execution Tests (Codeunit 50102)
-End-to-end integration tests with complete scripts:
-- **Complete Scripts**: Real-world script examples (customer listing, inventory analysis, sales calculations)
-- **Complex Logic**: Conditional logic, nested loops, string manipulation
-- **Mathematical Calculations**: Various arithmetic operations
-- **Mixed Data Types**: Tests with multiple data types in one script
-- **Error Scenarios**: Scripts that should produce errors
+| Codeunit | Scope | Highlights |
+| --- | --- | --- |
+| `Program Executor Tests` (80100) | Unit tests for expression engine and built-ins | Variable declaration, arithmetic precedence, logical operations, math utilities, string helpers, for-loop step handling, div/mod behaviour, message placeholder substitution, GUID generation, and defensive checks for unknown functions. |
+| `Record Operations Tests` (80101) | Record reference handling | Find/Set variants, field access, quoted identifiers, CalcFields/CalcSums, LockTable, filter validation, error surfacing for missing arguments, and guard rails for unsupported record methods. |
+| `Script Execution Tests` (80102) | End-to-end scenarios | Customer listings, inventory analysis, sales totals, nested loops, message formatting, mixed data types, error paths, and composite scripts leveraging for-loops and GUID output. |
 
-## Test Execution
+Each procedure follows a Given/When/Then comment style and uses `Program Executor` in console-only mode to keep the tests deterministic.
 
-Tests follow the AL Testability Framework guidelines:
-- Use **given/when/then** structure in test naming and comments
-- Use `Assert` statements for validations
-- Group related tests logically in codeunits
-- Each test is independent and can run in isolation
+## Running the Tests
 
-## Running Tests
+1. Deploy the extension to a sandbox or Docker container with test symbols.
+2. Open **AL Test Tool** in Visual Studio Code or use the **Test Tool** page in Business Central.
+3. Select the desired suite (`Program Executor Tests`, `Record Operations Tests`, `Script Execution Tests`) and run.
+4. In CI, AL-Go orchestrates the same suites; see `.AL-Go/` for pipeline configuration.
 
-Tests can be executed using:
-1. **AL Test Tool** in Visual Studio Code
-2. **Test Runner** page in Business Central
-3. **AL-Go** CI/CD pipeline
+> Tip: The interpreter relies on live application data. When verifying record scenarios, ensure key tables (Customer, Item, Sales Header) exist; tests assert for error messages rather than data contents.
 
-## Test Coverage
+## Coverage Map
 
-The test suite covers:
-- ✅ Variable declarations and assignments
-- ✅ All data types (Integer, Text, Boolean, Decimal, Date, DateTime, Record, etc.)
-- ✅ All operators (arithmetic, comparison, logical)
-- ✅ Control structures (if/then/else, repeat/until, begin/end)
-- ✅ Built-in functions (Message, StrLen, UpperCase, LowerCase, Format, etc.)
-- ✅ Record operations (FindSet, SetRange, SetFilter, field access)
-- ✅ Expression evaluation and precedence
-- ✅ Error handling and validation
-- ✅ Complete script execution scenarios
+- ✅ Data types: Integer, Decimal, Boolean, Text/Code, Char, BigText, Date, DateTime, GUID, Option, Duration, Blob, Record.
+- ✅ Operators & expressions: arithmetic, logical, unary, comparison, precedence, parentheses.
+- ✅ Control flow: `if`, `repeat until`, `for` (with `step`), block scoping, nested logic.
+- ✅ Built-in functions: Message placeholders, CopyStr, InsStr, StrLen, Power, Min/Max, Round, Abs, Format, CreateGuid, CurrentDateTime.
+- ✅ Record operations: SetRange/SetFilter validation, CalcFields/CalcSums guards, LockTable, Count, IsEmpty, Next loops.
+- ✅ Error scenarios: division by zero, undefined variables, missing arguments, unknown functions/methods, invalid fields.
 
-## Test Naming Convention
+## Naming & Style Guide
 
-Tests follow this naming pattern:
-- `Test[Feature][Scenario]()` - e.g., `TestIntegerAssignment()`
-- `Test[Component][Operation]()` - e.g., `TestRecordFindSet()`
-- `Test[CompleteScenario]()` - e.g., `TestCompleteCustomerListingScript()`
+- `Test<Area><Scenario>()` naming keeps AL Test Tool navigation predictable.
+- Each test initialises its own code string and asserts exclusively on local results.
+- `Type Helper` supplies the platform-specific LF separator to ensure consistent tokenisation tests.
 
-## Example Test Structure
+## Extending the Suite
 
-```al
-[Test]
-procedure TestBasicVariableDeclaration()
-var
-    Code: Text;
-    LF: Text[1];
-begin
-    LF := GetLineFeed();
-    
-    // [Given] AL code with variable declarations
-    Code := 'Counter: Integer;' + LF +
-            'Name: Text;' + LF +
-            'IsActive: Boolean;' + LF +
-            'Price: Decimal;';
-
-    // [When] Execute the program
-    ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
-
-    // [Then] Program should execute without errors
-    Assert.AreEqual('', ExecutionOutput, 'Program should execute without errors');
-end;
-```
-
-## Notes
-
-- Tests use `Char(10)` for line breaks in AL code strings to properly test tokenization
-- Console-only mode (`true`) is used to prevent Message dialogs during test execution
-- Some tests may have different results depending on the Business Central environment data
+- Add new unit tests to the most specific codeunit that matches the behaviour under test.
+- Prefer asserting on explicit output strings; avoid comparing entire execution logs when a substring suffices.
+- When covering error paths, assert on the exact `Error:` prefix to keep expectations robust across locales.
 

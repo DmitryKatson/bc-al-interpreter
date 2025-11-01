@@ -324,5 +324,100 @@ codeunit 80101 "Record Operations Tests"
         // [Then] Program should execute without errors
         Assert.AreEqual('', ExecutionOutput, 'Quoted field names should work');
     end;
+
+    [Test]
+    procedure TestSetRangeMissingArgumentsProducesError()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code calling SetRange with missing arguments
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.SetRange(''No.'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain an error message
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: SetRange requires at least 2 arguments') > 0, 'SetRange should validate the number of arguments');
+    end;
+
+    [Test]
+    procedure TestRecordLockTable()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code calling LockTable on a record
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.LockTable();';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual('', ExecutionOutput, 'LockTable should be a supported record method');
+    end;
+
+    [Test]
+    procedure TestRecordCalcFieldsInvalidField()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code calling CalcFields with an invalid field
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.CalcFields(''NonExistingField'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain an error about the missing field
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: Field not found for CalcFields: NonExistingField') > 0, 'CalcFields should validate field names');
+    end;
+
+    [Test]
+    procedure TestSetFilterIdentifierField()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code applying SetFilter with an identifier field name
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.SetFilter(Name, ''A*'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual('', ExecutionOutput, 'SetFilter should accept unquoted field identifiers');
+    end;
+
+    [Test]
+    procedure TestRecordUnknownMethodError()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code calling an unsupported record method
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.DoSomething();';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain an error for the unknown method
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: Unknown record method: DoSomething') > 0, 'Unknown record methods should raise errors');
+    end;
 }
 

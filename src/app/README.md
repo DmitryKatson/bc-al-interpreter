@@ -2,261 +2,175 @@
 
 ## Overview
 
-This extension enables Business Central users to write and execute AL code directly within the platform. The system provides a comprehensive AL interpreter that supports variables, expressions, conditionals, loops, record operations, and built-in functions.
+This extension enables administrators and power users to write and execute AL code directly within Business Central—no compilation or deployment required. Perfect for quick diagnostics, data exploration, learning AL fundamentals, or running ad-hoc scripts against your Business Central data.
 
-Users can simply write AL code and execute it immediately without compilation or deployment, making it perfect for quick prototyping, data analysis, and ad-hoc reporting.
+## Getting Started
 
-## Key Features
+1. **Install the Extension**: Deploy to a Business Central 2024 Wave 2 (v27.0) or later environment
+2. **Open the Page**: Search for **Interactive Code Runner** in Business Central
+3. **Write Your Code**: Use the built-in code editor to write AL statements
+4. **Execute**: Click the **Run** button to execute your code
+5. **View Results**: Output appears in the console pane below the editor; errors are clearly marked
 
-- Write and execute AL code directly in Business Central
-- Comprehensive AL interpreter supporting most language features
-- Interactive code editor with real-time execution
-- Built-in demo scripts for learning (auto-loaded on installation)
-- Save and organize your scripts for reuse
-- Public/private script sharing capabilities
-- No compilation or deployment required
+### User Interface Features
 
-## Setup Requirements
+- **Code Editor**: Syntax-aware editor with standard editing capabilities
+- **Run Button**: Execute your code immediately
+- **Console Output**: View execution results, messages, and errors in real-time
+- **Console Only Mode**: Toggle to suppress GUI dialogs (useful for automated testing)
+- **Script Management**: Save and organize your scripts for reuse
+- **Demo Scripts**: Access built-in learning examples from the demo library
 
-- Business Central 2024 Wave 2/v27.0+
-- Administrator permissions to install extensions
-- Visual Studio Code with AL Language extension (for development)
+## Common Use Cases
 
-## Quick Setup
+- **Data Analysis**: Quickly analyze customer data, inventory levels, or sales figures
+- **Troubleshooting**: Test queries and data access without deploying code
+- **Learning AL**: Practice AL programming concepts with immediate feedback
+- **Ad-Hoc Reporting**: Generate quick reports by querying Business Central tables
+- **Data Validation**: Verify data integrity and identify inconsistencies
+- **Quick Calculations**: Perform calculations on Business Central data in real-time
 
-1. **Install Extension**: Deploy the extension to your Business Central environment
-2. **Open Code Runner**: Search for "Interactive Code Runner" in Business Central
-3. **Load Demos**: Demo scripts are automatically loaded on first use
-4. **Start Coding**: Write your first AL script and click "Run"
+## Supported Syntax Overview
 
-## Using the Extension
+### Data Types
 
-1. Open "Interactive Code Runner" page
-2. Write your AL code in the editor
-3. Click "Run" to execute
-4. View results in the output console
-5. Save useful scripts for later use
+| Type | Default value | Notes |
+| --- | --- | --- |
+| Integer | `0` | Supports arithmetic, `div`, `mod` |
+| Decimal | `0` | Uses invariant culture in string form |
+| Boolean | `false` | Accepts `true`, `false`, `1`, `0`, `yes`, `no` |
+| Text / Code | `''` | Text joins with `+` |
+| Char | `''` | Single-character strings |
+| BigText | `''` | Treated as Text in runtime |
+| Date | `0D` | Works with `Today()` |
+| DateTime | `0DT` | Works with `CurrentDateTime()` |
+| Duration | `0` | Stored as text representation |
+| GUID | Generated via `CreateGuid()` | Declaring a GUID initialises it with a new value |
+| Option | `0` | No option members defined; use integers for values |
+| Blob | `''` | Managed as empty text |
+| Record `<Table>` | Uninitialised | Resolved dynamically through `RecordRef` |
 
-## Demo Scripts
+### Statements & Control Flow
 
-The extension includes 7 progressive demo scripts that teach AL programming from zero to hero:
+| Statement | Syntax | Example | Notes |
+| --- | --- | --- | --- |
+| Variable declaration | `<Name>: <Type>;` | `Counter: Integer;` | Records require table name `Customer: Record Customer;` |
+| Assignment | `<Name> := <Expression>;` | `Counter := Counter + 1;` | Field assignment `Customer.Name := 'New';` |
+| If / Then / Else | `if Condition then ... [else ...];` | `if Amount > 0 then Message('Positive');` | Nested `if` supported; requires `then` keyword |
+| Repeat / Until | `repeat ... until Condition;` | `repeat Counter += 1; until Counter = 10;` | Guarded by 10,000 iteration limit |
+| For loop | `for Var := From to To [step N] do ...;` | `for Index := 1 to 5 step 2 do begin ... end;` | Step must evaluate to integer |
+| Begin / End block | `begin ... end;` | `begin ... end;` | Semicolon required after `end` |
+| While loop | `while Condition do ...;` | `while Counter < 5 do begin ... end;` | Executed with limited support; prefer `repeat`/`for` |
+| Exit / Break / Continue | `exit;` | `break;` | Parsed; `break/continue` currently behave as no-ops |
 
-### 1. Welcome & Basics
-Learn variable declarations, assignments, and basic operations.
+### Expressions & Operators
 
-### 2. Working with Data
-Master record operations, FindSet(), and field access.
+| Operator | Description | Example |
+| --- | --- | --- |
+| `+`, `-`, `*`, `/` | Arithmetic with auto coercion | `Total := Price * Quantity;` |
+| `div`, `mod` | Integer division & remainder | `Part := Counter div 10;` |
+| Unary `-`, `not` | Negation | `Value := -Value;` |
+| `=`, `<>`, `<`, `>`, `<=`, `>=` | Comparisons return Boolean text | `if A >= B then ...;` |
+| `and`, `or` | Logical operators | `if IsOpen and not IsBlocked then ...;` |
+| Parentheses | Explicit precedence | `Result := (2 + 3) * 4;` |
 
-### 3. Filtering & Conditions
-Understand SetRange(), if/then/else logic, and data filtering.
+### Built-In Functions
 
-### 4. Loops & Iteration
-Master repeat/until loops, counters, and control flow.
+| Function | Purpose | Example | Notes |
+| --- | --- | --- | --- |
+| `Message(Text[, Arg...])` | Emits output | `Message('Customer %1', Cust.No.);` | Supports `%1..%9` placeholders |
+| `StrLen(Text)` | String length | `Len := StrLen(Name);` | Returns textified integer |
+| `CopyStr(Text, Start[, Length])` | Substring | `CopyStr(Code, 1, 3);` | Start is 1-based |
+| `UpperCase(Text)` / `LowerCase(Text)` | Case transforms | `UpperCase(Name);` | |
+| `Format(Value)` | Converts to text | `Format(Total);` | |
+| `Today()` | Current date | `WorkDate := Today();` | |
+| `CurrentDateTime()` | Current DateTime | `CurrentDateTime();` | |
+| `Time()` | Current time | `Time();` | |
+| `Round(Value[, Precision])` | Numeric rounding | `Round(Amount, 0.01);` | Defaults to precision `1` if omitted |
+| `Abs(Value)` | Absolute value | `Abs(-10);` | Works for Integer/Decimal |
+| `Power(Value, Exponent)` | Exponentiation | `Power(2, 3);` | |
+| `Min(Value1, Value2)` / `Max(Value1, Value2)` | Min/Max | `Max(Amount, 0);` | Supports Integer & Decimal |
+| `StrPos(Text, SubText)` | Find substring | `StrPos(Name, 'A');` | |
+| `DelChr(Text, Where[, Which])` | Delete characters | `DelChr(Code, '=', '-');` | |
+| `InsStr(Text, Insert, Position)` | Insert substring | `InsStr('World', 'Hello ', 1);` | |
+| `MaxStrLen(Value)` | Returns `250` | `MaxStrLen(Name);` | Simplified implementation |
+| `CreateGuid()` | Generates GUID | `CreateGuid();` | Returns formatted text |
+| `CreateDateTime(Date, Time)` | Current DateTime | `CreateDateTime(Today(), Time());` | Returns current DateTime regardless of arguments |
+| `UserId()` / `CompanyName()` | Session metadata | `UserId();` | |
 
-### 5. Built-in Functions
-Learn string, date, math, and formatting functions.
+### Record Methods
 
-### 6. Real Analysis
-Apply everything to complete business data analysis.
+| Method | Description | Notes |
+| --- | --- | --- |
+| `FindFirst()` / `FindLast()` | Locate first/last record | Returns Boolean text |
+| `FindSet()` | Opens dataset for iteration | Returns Boolean text |
+| `Next()` | Advances current record | Returns `Integer` count |
+| `SetRange(Field, Value[, Value2])` | Applies range filter | Field can be identifier or quoted name |
+| `SetFilter(Field, Filter)` | Applies filter expression | Supports Business Central filter syntax |
+| `Insert(True)` / `Modify(True)` / `Delete(True)` | Persists record changes | Enforces Business Central validation; may fail without required fields |
+| `CalcFields(Field, ...)` | Calculates FlowFields | Raises error if field missing |
+| `CalcSums(Field, ...)` | Calculates SumIndexFields | Raises error if field missing |
+| `IsEmpty()` | Checks if record set is empty | Returns Boolean text |
+| `Count()` | Returns record count | |
+| `Get(...)` | Simplified record lookup | Basic record retrieval |
+| `Reset()` | Clears filters | |
+| `LockTable()` | Locks records | Obeys current session permissions |
 
-### 7. Advanced Patterns
-Master complex business logic and multi-table operations.
+## Runtime Limits
 
-## Example Questions
+- **Variables**: Up to 100 variables per script
+- **Record References**: Up to 10 simultaneous record variables
+- **Loop Protection**: Loops are automatically stopped after 10,000 iterations to prevent runaway scripts
+- **Error Handling**: Execution stops at the first error encountered; error messages appear in the console output
 
-- "Show me all customers with high balances"
-- "Analyze inventory levels and identify low stock items"
-- "Calculate total sales by customer for this month"
-- "Find the top 10 selling items"
-- "Generate a report of overdue invoices"
+## Usage Examples
 
-## Example Code
-
-### Basic Customer Query
+### Looping with Record Filters
 ```al
-Cust: Record Customer;
+Customer: Record Customer;
 Counter: Integer;
 
 Counter := 0;
-if Cust.FindSet() then begin
+Customer.SetFilter(Name, 'A*');
+if Customer.FindSet() then begin
   repeat
     Counter := Counter + 1;
-    Message('Customer ' + Format(Counter) + ': ' + Cust.Name);
-  until Cust.Next() = 0;
+    Message('Customer %1: %2', Counter, Customer.Name);
+  until Customer.Next() = 0;
 end;
 
-Message('Total customers: ' + Format(Counter));
+Message('Total: %1', Counter);
 ```
 
-### Inventory Analysis
+### String Utilities and Placeholders
 ```al
-Item: Record Item;
-LowStock: Integer;
+TextVar: Text;
+Result: Text;
 
-LowStock := 0;
-Item.SetRange('Type', 'Inventory');
-if Item.FindSet() then begin
-  repeat
-    if Item.Inventory < 10 then begin
-      LowStock := LowStock + 1;
-      Message('Low stock: ' + Item.'No.' + ' - ' + Item.Description);
-    end;
-  until Item.Next() = 0;
-end;
-
-Message('Items below reorder point: ' + Format(LowStock));
+TextVar := 'Hello World';
+Result := CopyStr(TextVar, 1, 5);
+Message('Original: %1', TextVar);
+Message('Slice: %1', Result);
+Message('Injected: %1', InsStr('World', 'Hello ', 1));
 ```
-
-### Sales Analysis
-```al
-SalesHeader: Record "Sales Header";
-TotalSales: Decimal;
-
-TotalSales := 0;
-SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Invoice);
-if SalesHeader.FindSet() then begin
-  repeat
-    TotalSales := TotalSales + SalesHeader."Amount Including VAT";
-  until SalesHeader.Next() = 0;
-end;
-
-Message('Total sales: ' + Format(TotalSales));
-```
-
-## Supported AL Features
-
-### Data Types
-- Integer, Text, Boolean, Decimal, Date, DateTime
-- Code, Char, BigText, GUID, Option, Duration, Blob
-- Record (for table access)
-
-### Operators
-- Arithmetic: `+`, `-`, `*`, `/`, `div`, `mod`
-- Comparison: `=`, `<>`, `<`, `>`, `<=`, `>=`
-- Logical: `and`, `or`, `not`
-- Assignment: `:=`
-
-### Control Structures
-- if/then/else statements with nesting
-- repeat/until loops
-- begin/end blocks for statement grouping
-
-### Record Operations
-- FindFirst(), FindLast(), FindSet()
-- Next() for iteration
-- SetRange(), SetFilter() for filtering
-- Field access and modification
-- CalcFields() for calculated fields
-
-### Built-in Functions
-- Message() for output
-- String: StrLen(), UpperCase(), LowerCase(), CopyStr()
-- Math: Round(), Abs()
-- Date: Today(), Time(), CurrentDateTime()
-- System: UserId(), CompanyName(), Format()
-
-## Adding Custom Instructions
-
-You can customize the interpreter's behavior by extending the codeunit with additional functions or modifying the built-in function set.
-
-### Method 1: Extend Built-in Functions
-
-Add new cases to the `CallBuiltInFunction()` procedure in the Program Executor codeunit:
-
-```al
-case FunctionName of
-    'MyCustomFunction':
-        // Your custom function logic
-        Result := 'Custom result';
-    // ... existing cases
-end;
-```
-
-### Method 2: Add New Statement Types
-
-Extend the `ParseStatement()` procedure to support new statement types:
-
-```al
-case TokenType of
-    'MY_KEYWORD':
-        ParseMyCustomStatement();
-    // ... existing cases
-end;
-```
-
-## Technical Notes
-
-- **Secure execution**: All code runs within Business Central's security model
-- **Data privacy**: No business data sent to external services
-- **Performance**: Optimized for typical data analysis scenarios
-- **Limitations**: Some advanced AL features not supported (see below)
-
-## Current Limitations
-
-- No while or for loops (only repeat/until)
-- No case/of statements
-- No procedure definitions
-- No local procedure calls
-- No arrays or complex data structures
-- Maximum 100 variables per script
-- Maximum 10,000 loop iterations
-- Single global scope only
-- No error handling (try/catch)
-- No file I/O operations
 
 ## Troubleshooting
 
-### "Table not found" Error
-- Verify table name spelling
-- Table must exist in your Business Central environment
-- Use exact table names from Business Central
+- **Table not found** – confirm the table exists in your Business Central environment and the current company grants access.
+- **Field not found** – check spelling; quoted field names must include the surrounding double quotes in code (`Customer."No."`).
+- **Variable not found** – declare variables before use; names are case-sensitive.
+- **Loop exceeded maximum iterations** – ensure loop conditions will eventually become true; prefer `for` loops when iteration bounds are known.
+- **Unknown function** – only functions listed in the Built-In Functions table above are available.
+- **Syntax error** – verify your AL syntax matches the examples in the Supported Syntax Overview.
 
-### "Field not found" Error
-- Check field name spelling
-- Field must exist on the table
-- Use single quotes for field names with special characters
+## Limitations & Roadmap
 
-### "Variable not found" Error
-- Declare the variable before using it
-- Check variable name spelling (case-sensitive)
+- Procedure declarations, `case`/`of`, arrays, and complex types are not yet supported.
+- `break` / `continue` tokens parse but currently exit without altering loop flow.
+- `CreateDateTime(Date, Time)` returns the current DateTime rather than evaluating arguments.
+- File I/O, HTTP, and external system calls are intentionally blocked.
+- Some advanced AL features may not be fully supported—refer to the Supported Syntax Overview for details.
 
-### "Loop exceeded maximum iterations" Error
-- Check loop condition - ensure it will eventually become true
-- Maximum iterations is 10,000 by default
+## Support & Contributions
 
-## Performance Tips
-
-- Filter records before iteration using SetRange() or SetFilter()
-- Use counters instead of displaying every record in loops
-- Test with small datasets first
-- Avoid nested loops when possible
-- Consider using CalcFields() for calculated fields
-
-## Security Notes
-
-⚠️ **Important Security Considerations:**
-
-- Only grant access to trusted administrators
-- Scripts execute with the user's permissions
-- Can modify database records if write operations are used
-- No sandboxing - scripts have full AL capabilities
-- Review all scripts before execution
-- Use "Is Public" flag carefully
-
-## Support
-
-For help, questions, or contributions, please refer to the project documentation or contact the development team.
-
-## Version History
-
-### Version 1.0.0.0
-- Initial release with comprehensive AL interpreter
-- Support for variables, expressions, conditionals, loops
-- Record operations and built-in functions
-- Interactive code editor with real-time execution
-- Demo scripts for learning
-- Public/private script sharing
-
----
-
-*Powered by Business Central and AL Language*
+The project follows AL-Go guidelines for development and deployment. For questions, feature requests, or to report issues, please refer to the repository documentation. For environment setup and CI/CD configuration, consult `.AL-Go/` and the repository root README.

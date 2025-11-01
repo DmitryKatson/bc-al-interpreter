@@ -619,9 +619,10 @@ codeunit 50001 "Program Executor"
         IsRecordMethod := false;
 
         // Check if this is a record method
-        if (CurrentTokenIndex > 2) and (TokenList.Get(CurrentTokenIndex - 1) = '.') then begin
-            IsRecordMethod := true;
-            RecordVarName := TokenList.Get(CurrentTokenIndex - 2);
+        if PeekTokenAt(CurrentTokenIndex - 1) = '.' then begin
+            RecordVarName := PeekTokenAt(CurrentTokenIndex - 2);
+            if RecordVarName <> '' then
+                IsRecordMethod := true;
         end;
 
         Advance();

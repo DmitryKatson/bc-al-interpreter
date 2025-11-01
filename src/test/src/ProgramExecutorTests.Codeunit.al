@@ -517,5 +517,152 @@ codeunit 80100 "Program Executor Tests"
         // [Then] Program should execute without errors
         Assert.AreEqual('', ExecutionOutput, 'Record variable declaration should work');
     end;
+
+    [Test]
+    procedure TestForLoopWithStep()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with for loop using step
+        Code := 'Index: Integer;' + LF +
+                'Sum: Integer;' + LF +
+                'Sum := 0;' + LF +
+                'for Index := 1 to 5 step 2 do' + LF +
+                'begin' + LF +
+                '  Sum := Sum + Index;' + LF +
+                'end;' + LF +
+                'Message(''Sum: '' + Format(Sum));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain the summed value
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Sum: 9') > 0, 'For loop with step should sum odd numbers');
+    end;
+
+    [Test]
+    procedure TestDivAndModOperators()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using div and mod operators
+        Code := 'Dividend: Integer;' + LF +
+                'DivResult: Integer;' + LF +
+                'ModResult: Integer;' + LF +
+                'Dividend := 17;' + LF +
+                'DivResult := Dividend div 5;' + LF +
+                'ModResult := Dividend mod 5;' + LF +
+                'Message(''Div: '' + Format(DivResult));' + LF +
+                'Message(''Mod: '' + Format(ModResult));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain div and mod results
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Div: 3') > 0, 'DIV operator should work');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Mod: 2') > 0, 'MOD operator should work');
+    end;
+
+    [Test]
+    procedure TestMessagePlaceholders()
+    var
+        Code: Text;
+    begin
+        // [Given] AL code using Message placeholders
+        Code := 'Message(''%1 + %2 = %3'', 2, 3, 5);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should replace placeholders
+        Assert.IsTrue(StrPos(ExecutionOutput, '2 + 3 = 5') > 0, 'Message placeholders should be substituted');
+    end;
+
+    [Test]
+    procedure TestCopyStrFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using CopyStr
+        Code := 'Source: Text;' + LF +
+                'Result: Text;' + LF +
+                'Source := ''Hello'';' + LF +
+                'Result := CopyStr(Source, 1, 4);' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain substring
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Hell') > 0, 'CopyStr should return the requested substring');
+    end;
+
+    [Test]
+    procedure TestInsStrFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using InsStr
+        Code := 'Result: Text;' + LF +
+                'Result := InsStr(''World'', ''Hello '', 1);' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain combined string
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Hello World') > 0, 'InsStr should insert text at the specified position');
+    end;
+
+    [Test]
+    procedure TestCreateGuidFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code calling CreateGuid
+        Code := 'GuidText: Text;' + LF +
+                'GuidText := CreateGuid();' + LF +
+                'Message(GuidText);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain a GUID value
+        Assert.IsTrue(StrPos(ExecutionOutput, '-') > 0, 'CreateGuid should return a GUID value');
+    end;
+
+    [Test]
+    procedure TestUnknownFunctionError()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code calling an unknown function
+        Code := 'Value: Text;' + LF +
+                'Value := UnknownFunc();';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain an error message
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: Unknown function: UnknownFunc') > 0, 'Unknown functions should raise an error');
+    end;
 }
 
