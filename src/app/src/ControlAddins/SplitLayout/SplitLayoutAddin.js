@@ -1,9 +1,98 @@
 // SplitLayoutAddin.js - Split layout container with two CodeMirror editors
 var codeEditor;
 var outputEditor;
+var outputCopyButton;
+var outputCopyTimer;
+
+function ensureSplitLayoutStyles() {
+    if (document.getElementById('split-layout-styles')) {
+        return;
+    }
+
+    var style = document.createElement('style');
+    style.id = 'split-layout-styles';
+    style.type = 'text/css';
+    style.textContent = '' +
+        '.split-layout-output-label { display:flex; justify-content:space-between; align-items:center; gap:8px; }' +
+        '.split-layout-output-actions { display:flex; align-items:center; gap:8px; }' +
+        '.split-layout-copy-button { width:28px; height:28px; border-radius:6px; border:1px solid rgba(51,51,51,0.25); background:rgba(51,51,51,0.08); cursor:pointer; position:relative; transition:background 0.15s ease, border-color 0.15s ease; }' +
+        '.split-layout-copy-button::before, .split-layout-copy-button::after { content:""; position:absolute; box-sizing:border-box; border-radius:2px; border:2px solid #333333; width:12px; height:14px; top:50%; left:50%; transform:translate(-50%, -55%); }' +
+        '.split-layout-copy-button::after { border-top-color:transparent; border-left-color:transparent; top:calc(50% + 3px); left:calc(50% + 3px); opacity:0.9; }' +
+        '.split-layout-copy-button:hover { background:rgba(51,51,51,0.16); border-color:rgba(51,51,51,0.4); }' +
+        '.split-layout-copy-button:focus { outline:2px solid #2680eb; outline-offset:2px; }' +
+        '.split-layout-copy-button.copied { background:rgba(46,160,67,0.18); border-color:rgba(46,160,67,0.6); }' +
+        '.split-layout-copy-button.copied::before, .split-layout-copy-button.copied::after { border-color:#2ea043; }' +
+        '.split-layout-copy-button.copy-error { background:rgba(206,56,75,0.18); border-color:rgba(206,56,75,0.6); }' +
+        '.split-layout-copy-button.copy-error::before, .split-layout-copy-button.copy-error::after { border-color:#ce384b; }';
+
+    document.head.appendChild(style);
+}
+
+function indicateOutputCopyResult(succeeded) {
+    if (!outputCopyButton) {
+        return;
+    }
+
+    if (outputCopyTimer) {
+        clearTimeout(outputCopyTimer);
+    }
+
+    outputCopyButton.classList.remove('copied');
+    outputCopyButton.classList.remove('copy-error');
+
+    var className = succeeded ? 'copied' : 'copy-error';
+    outputCopyButton.classList.add(className);
+
+    outputCopyTimer = setTimeout(function () {
+        outputCopyButton.classList.remove(className);
+    }, 1200);
+}
+
+function copySplitLayoutOutput() {
+    if (!outputEditor) {
+        indicateOutputCopyResult(false);
+        return;
+    }
+
+    var content = outputEditor.getValue();
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(content).then(function () {
+            indicateOutputCopyResult(true);
+        }).catch(function () {
+            legacyCopySplitLayoutOutput(content);
+        });
+    } else {
+        legacyCopySplitLayoutOutput(content);
+    }
+}
+
+function legacyCopySplitLayoutOutput(content) {
+    var textarea = document.createElement('textarea');
+    textarea.value = content;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'absolute';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+
+    var succeeded = false;
+
+    try {
+        succeeded = document.execCommand('copy');
+    } catch (error) {
+        succeeded = false;
+    }
+
+    document.body.removeChild(textarea);
+
+    indicateOutputCopyResult(succeeded);
+}
 
 // Initialize the split layout when the control add-in is ready
 document.addEventListener('DOMContentLoaded', function () {
+    ensureSplitLayoutStyles();
+
     // Set body styles to fill the add-in container (no viewport locking)
     document.documentElement.style.height = '100%';
     document.documentElement.style.width = '100%';
@@ -101,13 +190,33 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Add output console label
     var outputLabel = document.createElement('div');
-    outputLabel.textContent = 'Execution Output';
+    outputLabel.className = 'split-layout-output-label';
     outputLabel.style.padding = '8px';
     outputLabel.style.backgroundColor = '#f8f8f8';
     outputLabel.style.color = '#333333';
     outputLabel.style.fontWeight = 'bold';
     outputLabel.style.fontSize = '14px';
     outputLabel.style.borderBottom = '1px solid #ddd';
+    var outputLabelText = document.createElement('span');
+    outputLabelText.textContent = 'Execution Output';
+    outputLabel.appendChild(outputLabelText);
+
+    var outputLabelActions = document.createElement('div');
+    outputLabelActions.className = 'split-layout-output-actions';
+    outputLabel.appendChild(outputLabelActions);
+
+    outputCopyButton = document.createElement('button');
+    outputCopyButton.type = 'button';
+    outputCopyButton.className = 'split-layout-copy-button';
+    outputCopyButton.title = 'Copy output';
+    outputCopyButton.setAttribute('aria-label', 'Copy output');
+    outputCopyButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        copySplitLayoutOutput();
+    });
+    outputLabelActions.appendChild(outputCopyButton);
+
     rightPanel.appendChild(outputLabel);
 
     // Create output editor container
@@ -123,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function () {
         lineNumbers: true,
         mode: 'javascript',
         theme: 'default', // Light theme instead of dracula
-        readOnly: 'nocursor',
+        readOnly: true,
         lineWrapping: true,
         indentUnit: 2,
         tabSize: 2,
@@ -132,7 +241,8 @@ document.addEventListener('DOMContentLoaded', function () {
         autoCloseBrackets: true,
         foldGutter: true,
         gutters: ['CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
-        viewportMargin: Infinity
+        viewportMargin: Infinity,
+        cursorBlinkRate: -1
     });
     
     // Force the editor to fill the container
@@ -173,6 +283,8 @@ function SetOutputContent(content) {
         outputEditor.setValue(content || '');
         outputEditor.setSize('100%', '100%');
         outputEditor.refresh();
+        var scrollInfo = outputEditor.getScrollInfo();
+        outputEditor.scrollTo(null, scrollInfo.height);
     }
 }
 
@@ -181,5 +293,6 @@ function ClearOutput() {
         outputEditor.setValue('');
         outputEditor.setSize('100%', '100%');
         outputEditor.refresh();
+        outputEditor.scrollTo(null, 0);
     }
 }
