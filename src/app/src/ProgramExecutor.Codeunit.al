@@ -207,6 +207,11 @@ codeunit 50001 "Program Executor"
 
                 // Check for two-character operators
                 if (i < StrLen(CodeText)) then begin
+                    if (Ch = ':') and (CodeText[i + 1] = ':') then begin
+                        AddToken('::', 'OPERATOR');
+                        i += 2;
+                        continue;
+                    end;
                     if (Ch = ':') and (CodeText[i + 1] = '=') then begin
                         AddToken(':=', 'OPERATOR');
                         i += 2;
@@ -974,6 +979,22 @@ codeunit 50001 "Program Executor"
                 Advance();
                 FieldName := GetCurrentToken();
                 Advance();
+
+                // Check for enum access (Item.Type::Inventory)
+                if GetCurrentToken() = '::' then begin
+                    Advance();
+                    // After :: comes the enum value name (e.g., Inventory, No, Yes, etc.)
+                    // Return the enum value name as text (for now, actual enum conversion can be done later)
+                    if GetCurrentTokenType() = 'IDENTIFIER' then begin
+                        // Return enum value as text (e.g., "Inventory")
+                        Result := GetCurrentToken();
+                        Advance();
+                        exit(true);
+                    end else begin
+                        SetError('Expected enum value after ::');
+                        exit(false);
+                    end;
+                end;
 
                 // Check if this is a method call (has parentheses)
                 if GetCurrentToken() = '(' then
