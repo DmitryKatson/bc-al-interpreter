@@ -1,0 +1,34 @@
+{
+  "id": "d39c9430-b845-45a4-9cf0-c0fd0b343581",
+  "name": "Interactive AL Code Runner",
+  "publisher": "Katson.com",
+  "version": "1.0.0.0",
+  "brief": "Run simple AL scripts directly from within Business Central.",
+  "description": "This extension adds a lightweight page that lets administrators write small snippets of AL code and execute them immediately in the current company. It is designed for ad‑hoc scripting and testing without the overhead of building and deploying a full extension.",
+  "privacyStatement": "",
+  "EULA": "",
+  "help": "",
+  "url": "",
+  "logo": "",
+  "dependencies": [],
+  "screenshots": [],
+  "platform": "26.0.0.0",
+  "application": "26.0.0.0",
+  "idRanges": [
+    {
+    "from": 50000,
+    "to": 50049
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "runtime": "15.0",
+  "features": [
+    "NoImplicitWith"
+  ],
+  "resourceFolders": ["demos"],
+  "target": "Cloud"
+}

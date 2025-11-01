@@ -1,0 +1,36 @@
+// DEMO 2: Working with Business Central Data
+// Learn how to read data from tables
+
+var
+  // Declare a record variable for the Customer table
+  Cust: Record Customer;
+  Counter: Integer;
+
+begin
+  // Initialize counter
+  Counter := 0;
+
+  // FindSet() gets all records that match current filters
+  // It returns true if records were found
+  if Cust.FindSet() then begin
+    // repeat...until is a loop that continues until condition is true
+    repeat
+      Counter := Counter + 1;
+      
+      // Access fields using dot notation: RecordName.FieldName
+      Message('Customer ' + Format(Counter) + ': ' + Cust.Name);
+      
+      // Next() moves to the next record
+      // It returns 0 when no more records
+    until Cust.Next() = 0;
+  end;
+
+  // Display total count
+  Message('Total customers found: ' + Format(Counter));
+
+  // You can also get just the first record
+  if Cust.FindFirst() then
+    Message('First customer: ' + Cust.Name)
+  else
+    Message('No customers found');
+end;

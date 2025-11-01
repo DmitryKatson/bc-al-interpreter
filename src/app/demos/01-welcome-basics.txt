@@ -1,0 +1,31 @@
+// DEMO 1: Welcome to Interactive AL Code Runner
+// This is your first step in learning AL programming!
+
+var
+  // Variables are containers that store data
+  // You must declare them before using them
+  Counter: Integer;        // Stores whole numbers
+  Name: Text;             // Stores text/strings
+  IsActive: Boolean;      // Stores true/false values
+  Price: Decimal;         // Stores decimal numbers
+
+begin
+  // Assign values to variables using :=
+  Counter := 42;
+  Name := 'Hello World';
+  IsActive := true;
+  Price := 99.99;
+
+  // Display values using Message() function
+  Message('Counter: ' + Format(Counter));
+  Message('Name: ' + Name);
+  Message('Active: ' + Format(IsActive));
+  Message('Price: ' + Format(Price));
+
+  // You can do math with variables
+  Counter := Counter + 10;
+  Message('Counter after adding 10: ' + Format(Counter));
+
+  // You can combine text using + operator
+  Message('Welcome to ' + Name + '!');
+end;

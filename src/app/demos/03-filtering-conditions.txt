@@ -1,0 +1,39 @@
+// DEMO 3: Filtering Data and Using Conditions
+// Learn how to filter records and make decisions
+
+var
+  Cust: Record Customer;
+  HighBalanceCount: Integer;
+  LowBalanceCount: Integer;
+
+begin
+  // SetRange() filters records by a specific field value
+  // This finds customers with balance > 0
+  Cust.SetRange("Balance (LCY)", 0, 999999999);
+
+  HighBalanceCount := 0;
+  LowBalanceCount := 0;
+
+  if Cust.FindSet() then begin
+    repeat
+      // if...then...else lets you make decisions
+      if Cust."Balance (LCY)" > 1000 then begin
+        HighBalanceCount := HighBalanceCount + 1;
+        Message('High balance customer: ' + Cust.Name + ' (' + Format(Cust."Balance (LCY)") + ')');
+      end else begin
+        LowBalanceCount := LowBalanceCount + 1;
+        Message('Normal balance: ' + Cust.Name + ' (' + Format(Cust."Balance (LCY)") + ')');
+      end;
+    until Cust.Next() = 0;
+  end;
+
+  // Display summary
+  Message('High balance customers: ' + Format(HighBalanceCount));
+  Message('Normal balance customers: ' + Format(LowBalanceCount));
+
+  // You can also use SetFilter() for more complex filtering
+  // This example finds customers with names starting with 'A'
+  Cust.SetFilter("Name", 'A*');
+  if Cust.FindFirst() then
+    Message('First customer starting with A: ' + Cust.Name);
+end;

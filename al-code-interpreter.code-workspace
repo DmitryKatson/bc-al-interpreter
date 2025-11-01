@@ -1,0 +1,17 @@
+{
+    "folders": [
+        {
+            "path": "src/app",
+            "name": "AL Code Interpreter - App"
+        },
+        {
+            "path": "src/test",
+            "name": "AL Code Interpreter - Tests"
+        },
+        {
+            "path": ".AL-Go",
+            "name": "AL-Go Configuration"
+        }
+    ],
+    "settings": {}
+}

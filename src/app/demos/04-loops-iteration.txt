@@ -1,0 +1,46 @@
+// DEMO 4: Loops and Iteration
+// Master the art of repeating operations
+
+var
+  Item: Record Item;
+  Counter: Integer;
+  TotalValue: Decimal;
+  ItemValue: Decimal;
+
+begin
+  // Initialize variables
+  Counter := 0;
+  TotalValue := 0;
+
+  // SetRange to only look at inventory items
+  Item.SetRange(Type, Item.Type::Inventory);
+
+  if Item.FindSet() then begin
+    repeat
+      Counter := Counter + 1;
+      
+      // Calculate value for this item
+      ItemValue := Item.Inventory * Item."Unit Price";
+      TotalValue := TotalValue + ItemValue;
+      
+      // Only show first 5 items to avoid too many messages
+      if Counter <= 5 then
+        Message('Item ' + Format(Counter) + ': ' + Item.Description + ' (Value: ' + Format(ItemValue) + ')');
+      
+    until Item.Next() = 0;
+  end;
+
+  // Display summary statistics
+  Message('Total inventory items: ' + Format(Counter));
+  Message('Total inventory value: ' + Format(TotalValue));
+
+  // Example of a counter loop
+  Message('Counting from 1 to 5:');
+  Counter := 1;
+  repeat
+    Message('Count: ' + Format(Counter));
+    Counter := Counter + 1;
+  until Counter > 5;
+
+  Message('Loop completed!');
+end;

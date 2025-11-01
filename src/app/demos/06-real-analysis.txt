@@ -1,0 +1,62 @@
+// DEMO 6: Real Business Analysis
+// Apply everything you've learned to analyze sales data
+
+var
+  SalesHeader: Record "Sales Header";
+  SalesLine: Record "Sales Line";
+  TotalSales: Decimal;
+  OrderCount: Integer;
+  HighValueOrders: Integer;
+  LowValueOrders: Integer;
+  AverageOrderValue: Decimal;
+
+begin
+  // Initialize counters
+  TotalSales := 0;
+  OrderCount := 0;
+  HighValueOrders := 0;
+  LowValueOrders := 0;
+
+  // Filter for posted sales invoices only
+  SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Invoice);
+  SalesHeader.SetRange(Status, SalesHeader.Status::Released);
+
+  if SalesHeader.FindSet() then begin
+    repeat
+      OrderCount := OrderCount + 1;
+      
+      // Get the total amount for this order
+      SalesLine.SetRange("Document Type", SalesHeader."Document Type");
+      SalesLine.SetRange("Document No.", SalesHeader."No.");
+      SalesLine.CalcSums("Line Amount");
+      
+      // Categorize orders by value
+      if SalesLine."Line Amount" > 1000 then begin
+        HighValueOrders := HighValueOrders + 1;
+        Message('High value order: ' + SalesHeader."No." + ' - Customer: ' + SalesHeader."Sell-to Customer Name" + ' - Amount: ' + Format(SalesLine."Line Amount"));
+      end else begin
+        LowValueOrders := LowValueOrders + 1;
+      end;
+      
+      TotalSales := TotalSales + SalesLine."Line Amount";
+      
+    until SalesHeader.Next() = 0;
+  end;
+
+  // Calculate average
+  if OrderCount > 0 then
+    AverageOrderValue := TotalSales / OrderCount;
+
+  // Display comprehensive analysis
+  Message('=== SALES ANALYSIS REPORT ===');
+  Message('Total orders analyzed: ' + Format(OrderCount));
+  Message('Total sales value: ' + Format(TotalSales));
+  Message('Average order value: ' + Format(AverageOrderValue));
+  Message('High value orders (>1000): ' + Format(HighValueOrders));
+  Message('Standard orders: ' + Format(LowValueOrders));
+
+  if OrderCount > 0 then
+    Message('Analysis completed successfully!')
+  else
+    Message('No sales data found to analyze.');
+end;

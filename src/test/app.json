@@ -1,0 +1,46 @@
+{
+  "id": "32b5f2d1-cb88-4531-9e0e-118309681580",
+  "name": "Interactive AL Code Runner Tests",
+  "publisher": "Katson.com",
+  "version": "1.0.0.0",
+  "brief": "Test suite for Interactive AL Code Runner",
+  "description": "Automated tests for the Interactive AL Code Runner extension",
+  "privacyStatement": "",
+  "EULA": "",
+  "help": "",
+  "url": "",
+  "logo": "",
+  "dependencies": [
+    {
+      "id": "d39c9430-b845-45a4-9cf0-c0fd0b343581",
+      "publisher": "Katson.com",
+      "name": "Interactive AL Code Runner",
+      "version": "1.0.0.0"
+    },
+    {
+      "id": "dd0be2ea-f733-4d65-bb34-a28f4624fb14",
+      "publisher": "Microsoft",
+      "name": "Library Assert",
+      "version": "26.0.0.0"
+    }
+  ],
+  "screenshots": [],
+  "platform": "26.0.0.0",
+  "application": "26.0.0.0",
+  "idRanges": [
+    {
+      "from": 80100,
+      "to": 80149
+    }
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": true,
+    "allowDownloadingSource": true,
+    "includeSourceInSymbolFile": true
+  },
+  "runtime": "15.0",
+  "features": [
+    "NoImplicitWith"
+  ]
+}
+

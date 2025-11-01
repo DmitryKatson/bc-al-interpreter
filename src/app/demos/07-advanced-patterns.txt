@@ -1,0 +1,101 @@
+// DEMO 7: Advanced Patterns and Complex Logic
+// Master advanced techniques for real-world scenarios
+
+var
+  Item: Record Item;
+  Customer: Record Customer;
+  SalesHeader: Record "Sales Header";
+  SalesLine: Record "Sales Line";
+
+  // Complex analysis variables
+  TopCustomer: Text;
+  TopCustomerSales: Decimal;
+  LowStockItems: Integer;
+  OutOfStockItems: Integer;
+  TotalInventoryValue: Decimal;
+  ItemValue: Decimal;
+  CustomerSales: Decimal;
+
+begin
+  // Initialize tracking variables
+  TopCustomer := '';
+  TopCustomerSales := 0;
+  LowStockItems := 0;
+  OutOfStockItems := 0;
+  TotalInventoryValue := 0;
+
+  Message('=== ADVANCED BUSINESS ANALYSIS ===');
+
+  // PART 1: Inventory Analysis
+  Message('Analyzing inventory...');
+  Item.SetRange(Type, Item.Type::Inventory);
+
+  if Item.FindSet() then begin
+    repeat
+      // Calculate item value
+      ItemValue := Item.Inventory * Item."Unit Price";
+      TotalInventoryValue := TotalInventoryValue + ItemValue;
+      
+      // Categorize by stock level
+      if Item.Inventory = 0 then begin
+        OutOfStockItems := OutOfStockItems + 1;
+        Message('OUT OF STOCK: ' + Item."No." + ' - ' + Item.Description);
+      end else if Item.Inventory < 10 then begin
+        LowStockItems := LowStockItems + 1;
+        Message('LOW STOCK: ' + Item."No." + ' - ' + Item.Description + ' (Stock: ' + Format(Item.Inventory) + ')');
+      end;
+      
+    until Item.Next() = 0;
+  end;
+
+  // PART 2: Customer Sales Analysis
+  Message('Analyzing customer sales...');
+  if Customer.FindSet() then begin
+    repeat
+      // Calculate total sales for this customer
+      SalesHeader.SetRange("Sell-to Customer No.", Customer."No.");
+      SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Invoice);
+      SalesHeader.SetRange(Status, SalesHeader.Status::Released);
+      
+      CustomerSales := 0;
+      if SalesHeader.FindSet() then begin
+        repeat
+          SalesLine.SetRange("Document Type", SalesHeader."Document Type");
+          SalesLine.SetRange("Document No.", SalesHeader."No.");
+          SalesLine.CalcSums("Line Amount");
+          CustomerSales := CustomerSales + SalesLine."Line Amount";
+        until SalesHeader.Next() = 0;
+      end;
+      
+      // Track top customer
+      if CustomerSales > TopCustomerSales then begin
+        TopCustomer := Customer.Name;
+        TopCustomerSales := CustomerSales;
+      end;
+      
+    until Customer.Next() = 0;
+  end;
+
+  // PART 3: Generate comprehensive report
+  Message('=== COMPREHENSIVE BUSINESS REPORT ===');
+  Message('INVENTORY SUMMARY:');
+  Message('Total inventory value: ' + Format(TotalInventoryValue));
+  Message('Out of stock items: ' + Format(OutOfStockItems));
+  Message('Low stock items (<10): ' + Format(LowStockItems));
+
+  Message('CUSTOMER ANALYSIS:');
+  if TopCustomer <> '' then begin
+    Message('Top customer: ' + TopCustomer);
+    Message('Top customer sales: ' + Format(TopCustomerSales));
+  end else begin
+    Message('No customer sales data found');
+  end;
+
+  Message('=== ANALYSIS COMPLETE ===');
+  Message('This demonstrates advanced AL programming patterns:');
+  Message('- Complex nested loops');
+  Message('- Multi-table analysis');
+  Message('- Conditional categorization');
+  Message('- Running totals and comparisons');
+  Message('- Comprehensive reporting');
+end;

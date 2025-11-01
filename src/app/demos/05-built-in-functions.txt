@@ -1,0 +1,54 @@
+// DEMO 5: Built-in Functions
+// Learn the powerful functions available in AL
+
+var
+  TextVar: Text;
+  NumberVar: Decimal;
+  DateVar: Date;
+  Length: Integer;
+  UpperText: Text;
+  LowerText: Text;
+  SubText: Text;
+  FormattedText: Text;
+
+begin
+  // String functions
+  TextVar := 'Hello World from Business Central';
+
+  // StrLen() gets the length of text
+  Length := StrLen(TextVar);
+  Message('Text length: ' + Format(Length));
+
+  // UpperCase() converts to uppercase
+  UpperText := UpperCase(TextVar);
+  Message('Uppercase: ' + UpperText);
+
+  // LowerCase() converts to lowercase
+  LowerText := LowerCase(TextVar);
+  Message('Lowercase: ' + LowerText);
+
+  // CopyStr() extracts part of a string
+  // CopyStr(Text, StartPosition, Length)
+  SubText := CopyStr(TextVar, 7, 5);
+  Message('Substring from position 7, length 5: ' + SubText);
+
+  // Date functions
+  DateVar := Today();
+  Message('Today is: ' + Format(DateVar));
+
+  // Math functions
+  NumberVar := 123.456789;
+
+  // Round() rounds to specified decimal places
+  Message('Rounded to 2 decimals: ' + Format(Round(NumberVar, 2)));
+
+  // Abs() gets absolute value
+  Message('Absolute value of -50: ' + Format(Abs(-50)));
+
+  // Format() converts any value to text for display
+  FormattedText := Format(NumberVar);
+  Message('Formatted number: ' + FormattedText);
+
+  // You can combine functions
+  Message('First 10 characters in uppercase: ' + UpperCase(CopyStr(TextVar, 1, 10)));
+end;
