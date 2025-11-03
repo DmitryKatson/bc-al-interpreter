@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize CodeMirror editor
     editor = CodeMirror(container, {
         lineNumbers: true,
-        mode: 'javascript',
-        theme: 'dracula',
+        mode: 'al',
+        theme: 'al-theme',
         readOnly: false,
         lineWrapping: true,
         indentUnit: 2,

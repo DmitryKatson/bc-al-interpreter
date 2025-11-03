@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
     mainContainer.style.display = 'flex';
     mainContainer.style.flexDirection = 'row';
     mainContainer.style.gap = '0px';
-    mainContainer.style.border = '1px solid #ddd';
+    mainContainer.style.border = '1px solid #2d2d2d';
     mainContainer.style.position = 'absolute';
     mainContainer.style.top = '0';
     mainContainer.style.left = '0';
@@ -132,11 +132,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var codeLabel = document.createElement('div');
     codeLabel.textContent = 'AL Code';
     codeLabel.style.padding = '8px';
-    codeLabel.style.backgroundColor = '#2d2d2d';
-    codeLabel.style.color = '#f8f8f2';
+    codeLabel.style.backgroundColor = '#1e1e1e';
+    codeLabel.style.color = '#d4d4d4';
     codeLabel.style.fontWeight = 'bold';
     codeLabel.style.fontSize = '14px';
-    codeLabel.style.borderBottom = '1px solid #444';
+    codeLabel.style.borderBottom = '1px solid #2d2d2d';
     leftPanel.appendChild(codeLabel);
 
     // Create code editor container
@@ -149,8 +149,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize code editor
     codeEditor = CodeMirror(codeContainer, {
         lineNumbers: true,
-        mode: 'javascript',
-        theme: 'dracula',
+        mode: 'al',
+        theme: 'al-theme',
         readOnly: false,
         lineWrapping: true,
         indentUnit: 2,

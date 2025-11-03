@@ -1,10 +1,10 @@
 controladdin CodeEditorAddin
 {
     Scripts = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js',
-              'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js',
+              'CodeEditorAddin-al-mode.js',
               'CodeEditorAddin.js';
     Stylesheets = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css',
-                  'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css';
+                  'al-theme.css';
     RequestedHeight = 650;
     RequestedWidth = 400;
     MinimumHeight = 200;

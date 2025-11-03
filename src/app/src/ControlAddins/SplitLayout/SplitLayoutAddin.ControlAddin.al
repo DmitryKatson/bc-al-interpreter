@@ -2,9 +2,10 @@ controladdin SplitLayoutAddin
 {
     Scripts = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js',
               'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js',
+              '../CodeEditor/CodeEditorAddin-al-mode.js',
               'SplitLayoutAddin.js';
     Stylesheets = 'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css',
-                  'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css';
+                  '../CodeEditor/al-theme.css';
     RequestedHeight = 650;
     RequestedWidth = 1200;
     MinimumHeight = 300;
