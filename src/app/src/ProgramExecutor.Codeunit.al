@@ -354,12 +354,10 @@ codeunit 50001 "Program Executor"
                     exit(ParseWhileLoop());
                 'begin':
                     exit(ParseBeginEnd());
+                'case':
+                    exit(ParseCaseStatement());
                 'exit':
-                    begin
-                        Advance();
-                        ConsumeSemicolon();
-                        exit(true);
-                    end;
+                    exit(ParseExitStatement());
                 'break':
                     begin
                         Advance();
@@ -1274,6 +1272,7 @@ codeunit 50001 "Program Executor"
         FilterValue: Text;
         BoolResult: Boolean;
         IsCalcFields: Boolean;
+        FieldNameFirstArg: Boolean;
     begin
         if not GetActiveRecordRef(RecordVarName, RecRef) then begin
             SetError('Record variable not found: ' + RecordVarName);
@@ -1287,6 +1286,11 @@ codeunit 50001 "Program Executor"
 
         // Some methods require field names as strings, not evaluated expressions
         IsCalcFields := (LowerCase(MethodName) = 'calcfields') or (LowerCase(MethodName) = 'calcsums');
+        FieldNameFirstArg := false;
+        case LowerCase(MethodName) of
+            'setrange', 'setfilter', 'validate', 'testfield', 'modifyall', 'getfilter':
+                FieldNameFirstArg := true;
+        end;
 
         // Parse arguments
         if GetCurrentToken() <> ')' then begin
@@ -1297,22 +1301,12 @@ codeunit 50001 "Program Executor"
                     Advance();
                     Args.Add(ArgValue);
                 end else begin
-                    // For SetRange/SetFilter, first argument is field name (can be unquoted if single word)
-                    // If it's an identifier and this is the first argument, treat as field name string
-                    if (Args.Count = 0) and ((LowerCase(MethodName) = 'setrange') or (LowerCase(MethodName) = 'setfilter')) then begin
-                        if GetCurrentTokenType() = 'IDENTIFIER' then begin
-                            // Unquoted field name like Name - treat as string literal
-                            ArgValue := GetCurrentToken();
-                            Advance();
-                            Args.Add(ArgValue);
-                        end else begin
-                            // Quoted field name like "Balance (LCY)" - already tokenized as IDENTIFIER
-                            if not EvaluateExpression(ArgValue) then
-                                exit(false);
-                            Args.Add(ArgValue);
-                        end;
+                    // For methods where the first argument is a field name, support unquoted identifiers
+                    if (Args.Count = 0) and FieldNameFirstArg and (GetCurrentTokenType() = 'IDENTIFIER') then begin
+                        ArgValue := GetCurrentToken();
+                        Advance();
+                        Args.Add(ArgValue);
                     end else begin
-                        // For other methods or subsequent arguments, evaluate as expression
                         if not EvaluateExpression(ArgValue) then
                             exit(false);
                         Args.Add(ArgValue);
@@ -1451,6 +1445,88 @@ codeunit 50001 "Program Executor"
             'locktable':
                 begin
                     RecRef.LockTable();
+                    Result := 'true';
+                    exit(true);
+                end;
+            'init':
+                begin
+                    RecRef.Init();
+                    Result := 'true';
+                    exit(true);
+                end;
+            'changecompany':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('ChangeCompany requires 1 argument (company name)');
+                        exit(false);
+                    end;
+                    RecRef.ChangeCompany(Args.Get(1));
+                    Result := 'true';
+                    exit(true);
+                end;
+            'deleteall':
+                begin
+                    RecRef.DeleteAll(true);
+                    Result := 'true';
+                    exit(true);
+                end;
+            'validate':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Validate requires at least 1 argument (field name)');
+                        exit(false);
+                    end;
+                    if not ValidateRecordField(RecRef, Args) then
+                        exit(false);
+                    Result := 'true';
+                    exit(true);
+                end;
+            'getfilter':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('GetFilter requires 1 argument (field name)');
+                        exit(false);
+                    end;
+                    if not GetRecordFilter(RecRef, Args.Get(1), Result) then
+                        exit(false);
+                    exit(true);
+                end;
+            'find':
+                begin
+                    // Find with operator: Find('=') or Find('<')
+                    if Args.Count < 1 then begin
+                        SetError('Find requires at least 1 argument (operator)');
+                        exit(false);
+                    end;
+                    if not FindWithOperator(RecRef, Args, BoolResult) then
+                        exit(false);
+                    Result := BoolToText(BoolResult);
+                    exit(true);
+                end;
+            'countapprox':
+                begin
+                    Result := Format(RecRef.CountApprox);
+                    exit(true);
+                end;
+            'testfield':
+                begin
+                    if Args.Count < 2 then begin
+                        SetError('TestField requires at least 2 arguments (field name, value)');
+                        exit(false);
+                    end;
+                    if not TestRecordField(RecRef, Args) then
+                        exit(false);
+                    Result := 'true';
+                    exit(true);
+                end;
+            'modifyall':
+                begin
+                    if Args.Count < 2 then begin
+                        SetError('ModifyAll requires at least 2 arguments (field name, value)');
+                        exit(false);
+                    end;
+                    if not ModifyAllRecords(RecRef, Args) then
+                        exit(false);
                     Result := 'true';
                     exit(true);
                 end;
@@ -1671,6 +1747,122 @@ codeunit 50001 "Program Executor"
                 exit(FieldRef.Number);
         end;
         exit(0);
+    end;
+
+    local procedure ValidateRecordField(var RecRef: RecordRef; Args: List of [Text]): Boolean
+    var
+        FieldRef: FieldRef;
+        FieldNo: Integer;
+        FieldName: Text;
+        Value: Text;
+    begin
+        FieldName := Args.Get(1);
+        FieldNo := GetFieldNumber(RecRef, FieldName);
+        if FieldNo = 0 then begin
+            SetError('Field not found for Validate: ' + FieldName);
+            exit(false);
+        end;
+
+        FieldRef := RecRef.Field(FieldNo);
+
+        if Args.Count >= 2 then begin
+            Value := Args.Get(2);
+            FieldRef.Validate(Value);
+        end else
+            FieldRef.Validate();
+
+        exit(true);
+    end;
+
+    local procedure GetRecordFilter(var RecRef: RecordRef; FieldName: Text; var FilterText: Text): Boolean
+    var
+        FieldRef: FieldRef;
+        FieldNo: Integer;
+    begin
+        FieldNo := GetFieldNumber(RecRef, FieldName);
+        if FieldNo = 0 then begin
+            SetError('Field not found for GetFilter: ' + FieldName);
+            exit(false);
+        end;
+
+        FieldRef := RecRef.Field(FieldNo);
+        FilterText := FieldRef.GetFilter();
+        exit(true);
+    end;
+
+    local procedure FindWithOperator(var RecRef: RecordRef; Args: List of [Text]; var BoolResult: Boolean): Boolean
+    var
+        Operator: Text;
+    begin
+        Operator := Args.Get(1);
+        case Operator of
+            '=':
+                BoolResult := RecRef.Find('=');
+            '<>':
+                BoolResult := RecRef.Find('<>');
+            '<':
+                BoolResult := RecRef.Find('<');
+            '>':
+                BoolResult := RecRef.Find('>');
+            '<=':
+                BoolResult := RecRef.Find('<=');
+            '>=':
+                BoolResult := RecRef.Find('>=');
+            else begin
+                SetError('Invalid operator for Find: ' + Operator);
+                exit(false);
+            end;
+        end;
+        exit(true);
+    end;
+
+    local procedure TestRecordField(var RecRef: RecordRef; Args: List of [Text]): Boolean
+    var
+        FieldRef: FieldRef;
+        FieldNo: Integer;
+        FieldName: Text;
+        TestValue: Text;
+    begin
+        FieldName := Args.Get(1);
+        TestValue := Args.Get(2);
+
+        FieldNo := GetFieldNumber(RecRef, FieldName);
+        if FieldNo = 0 then begin
+            SetError('Field not found for TestField: ' + FieldName);
+            exit(false);
+        end;
+
+        FieldRef := RecRef.Field(FieldNo);
+        FieldRef.TestField(TestValue);
+        exit(true);
+    end;
+
+    local procedure ModifyAllRecords(var RecRef: RecordRef; Args: List of [Text]): Boolean
+    var
+        FieldRef: FieldRef;
+        FieldNo: Integer;
+        FieldName: Text;
+        NewValue: Text;
+    begin
+        FieldName := Args.Get(1);
+        NewValue := Args.Get(2);
+
+        FieldNo := GetFieldNumber(RecRef, FieldName);
+        if FieldNo = 0 then begin
+            SetError('Field not found for ModifyAll: ' + FieldName);
+            exit(false);
+        end;
+
+        FieldRef := RecRef.Field(FieldNo);
+
+        if RecRef.FindSet() then begin
+            repeat
+                FieldRef.Value := NewValue;
+                RecRef.Modify(true);
+            until RecRef.Next() = 0;
+        end;
+
+        exit(true);
     end;
 
     // Math and comparison helpers
@@ -2028,6 +2220,255 @@ codeunit 50001 "Program Executor"
     begin
         if ErrorMessage = '' then
             ErrorMessage := ErrMsg;
+    end;
+
+    local procedure ParseCaseStatement(): Boolean
+    var
+        ExpressionValue: Text;
+        CaseValue: Text;
+        BranchMatches: Boolean;
+        Matched: Boolean;
+        MatchedStart: Integer;
+        MatchedEnd: Integer;
+        CaseEndIndex: Integer;
+        ScanIndex: Integer;
+        SavedIndex: Integer;
+        BranchStart: Integer;
+        BranchEnd: Integer;
+    begin
+        Advance(); // Skip 'case'
+
+        if not EvaluateExpression(ExpressionValue) then
+            exit(false);
+
+        if not ConsumeKeyword('of') then begin
+            SetError('Expected OF after CASE expression');
+            exit(false);
+        end;
+
+        Matched := false;
+        MatchedStart := 0;
+        MatchedEnd := 0;
+
+        CaseEndIndex := FindCaseEndIndex(CurrentTokenIndex);
+        if CaseEndIndex = 0 then begin
+            SetError('Expected END for CASE statement');
+            exit(false);
+        end;
+
+        ScanIndex := CurrentTokenIndex;
+
+        while ScanIndex < CaseEndIndex do begin
+            while (ScanIndex < CaseEndIndex) and (PeekTokenAt(ScanIndex) = ';') do
+                ScanIndex := ScanIndex + 1;
+
+            if ScanIndex >= CaseEndIndex then
+                break;
+
+            case LowerCase(PeekTokenAt(ScanIndex)) of
+                'else':
+                    begin
+                        if not Matched then begin
+                            Matched := true;
+                            MatchedStart := ScanIndex + 1;
+                            MatchedEnd := CaseEndIndex;
+                        end;
+                        ScanIndex := CaseEndIndex;
+                        break;
+                    end;
+                'end':
+                    break;
+                else begin
+                    SavedIndex := CurrentTokenIndex;
+                    CurrentTokenIndex := ScanIndex;
+                    BranchMatches := false;
+
+                    repeat
+                        if not EvaluateExpression(CaseValue) then begin
+                            CurrentTokenIndex := SavedIndex;
+                            exit(false);
+                        end;
+
+                        if not Matched and not BranchMatches then
+                            BranchMatches := ValuesEqual(ExpressionValue, CaseValue);
+
+                        if GetCurrentToken() = ',' then begin
+                            Advance();
+                            continue;
+                        end else
+                            break;
+                    until false;
+
+                    if not ConsumeToken(':') then begin
+                        SetError('Expected : after CASE branch value');
+                        CurrentTokenIndex := SavedIndex;
+                        exit(false);
+                    end;
+
+                    BranchStart := CurrentTokenIndex;
+                    BranchEnd := FindCaseBranchEnd(BranchStart, CaseEndIndex);
+
+                    if BranchMatches and not Matched then begin
+                        Matched := true;
+                        MatchedStart := BranchStart;
+                        MatchedEnd := BranchEnd;
+                    end;
+
+                    ScanIndex := BranchEnd;
+                    CurrentTokenIndex := SavedIndex;
+                end;
+            end;
+        end;
+
+        if Matched and (MatchedStart > 0) then begin
+            CurrentTokenIndex := MatchedStart;
+            while CurrentTokenIndex < MatchedEnd do begin
+                if not ParseStatement() then
+                    exit(false);
+            end;
+            CurrentTokenIndex := MatchedEnd;
+        end else begin
+            CurrentTokenIndex := CaseEndIndex;
+        end;
+
+        if CurrentTokenIndex < CaseEndIndex then
+            CurrentTokenIndex := CaseEndIndex;
+
+        if LowerCase(GetCurrentToken()) = 'end' then
+            Advance();
+
+        ConsumeSemicolon();
+        exit(true);
+    end;
+
+    local procedure FindCaseEndIndex(StartIndex: Integer): Integer
+    var
+        i: Integer;
+        NestLevel: Integer;
+        Token: Text;
+    begin
+        NestLevel := 0;
+
+        for i := StartIndex to TokenList.Count do begin
+            Token := LowerCase(TokenList.Get(i));
+
+            case Token of
+                'case', 'begin', 'repeat':
+                    NestLevel := NestLevel + 1;
+                'end':
+                    begin
+                        if NestLevel = 0 then
+                            exit(i);
+                        NestLevel := NestLevel - 1;
+                    end;
+                'until':
+                    if NestLevel > 0 then
+                        NestLevel := NestLevel - 1;
+            end;
+        end;
+
+        exit(0);
+    end;
+
+    local procedure FindCaseBranchEnd(StartIndex: Integer; CaseEndIndex: Integer): Integer
+    var
+        i: Integer;
+        NestLevel: Integer;
+        Token: Text;
+    begin
+        i := StartIndex;
+        NestLevel := 0;
+
+        while i < CaseEndIndex do begin
+            Token := LowerCase(PeekTokenAt(i));
+
+            case Token of
+                'case', 'begin', 'repeat':
+                    begin
+                        NestLevel := NestLevel + 1;
+                        i := i + 1;
+                        continue;
+                    end;
+                'end':
+                    begin
+                        if NestLevel = 0 then
+                            exit(i);
+                        NestLevel := NestLevel - 1;
+                        i := i + 1;
+                        continue;
+                    end;
+                'until':
+                    begin
+                        if NestLevel > 0 then
+                            NestLevel := NestLevel - 1;
+                        i := i + 1;
+                        continue;
+                    end;
+                'else':
+                    if NestLevel = 0 then
+                        exit(i);
+            end;
+
+            if (PeekTokenAt(i) = ';') and (NestLevel = 0) then begin
+                if NextTokenIsCaseBranch(i + 1, CaseEndIndex) then
+                    exit(i + 1);
+            end;
+
+            i := i + 1;
+        end;
+
+        exit(CaseEndIndex);
+    end;
+
+    local procedure NextTokenIsCaseBranch(StartIndex: Integer; CaseEndIndex: Integer): Boolean
+    var
+        i: Integer;
+        Token: Text;
+    begin
+        i := StartIndex;
+
+        while i < CaseEndIndex do begin
+            Token := LowerCase(PeekTokenAt(i));
+
+            if Token = 'else' then
+                exit(false);
+            if Token = 'end' then
+                exit(false);
+            if Token = ';' then
+                exit(false);
+            if Token = ':' then
+                exit(true);
+
+            i := i + 1;
+        end;
+
+        exit(false);
+    end;
+
+    local procedure ValuesEqual(Left: Text; Right: Text): Boolean
+    begin
+        exit(CompareValues(Left, Right, '='));
+    end;
+
+    local procedure ParseExitStatement(): Boolean
+    var
+        ReturnValue: Text;
+    begin
+        Advance(); // Skip 'exit'
+
+        // Check if exit has a return value: exit(expression)
+        if GetCurrentToken() = '(' then begin
+            Advance(); // Skip '('
+            if not EvaluateExpression(ReturnValue) then
+                exit(false);
+            if not ConsumeToken(')') then begin
+                SetError('Expected ) after exit return value');
+                exit(false);
+            end;
+        end;
+
+        ConsumeSemicolon();
+        exit(true);
     end;
 
     local procedure ParseForLoop(): Boolean

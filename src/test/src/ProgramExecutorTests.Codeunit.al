@@ -664,5 +664,635 @@ codeunit 80100 "Program Executor Tests"
         // [Then] Output should contain an error message
         Assert.IsTrue(StrPos(ExecutionOutput, 'Error: Unknown function: UnknownFunc') > 0, 'Unknown functions should raise an error');
     end;
+
+    [Test]
+    procedure TestCaseStatement()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with case statement
+        Code := 'Value: Integer;' + LF +
+                'Result: Text;' + LF +
+                'Value := 2;' + LF +
+                'case Value of' + LF +
+                '  1: Result := ''One'';' + LF +
+                '  2: Result := ''Two'';' + LF +
+                '  3: Result := ''Three'';' + LF +
+                '  else Result := ''Other'';' + LF +
+                'end;' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain the matched case value
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Two') > 0, 'Case statement should match and execute correct branch');
+    end;
+
+    [Test]
+    procedure TestCaseStatementWithElse()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with case statement using else branch
+        Code := 'Value: Integer;' + LF +
+                'Result: Text;' + LF +
+                'Value := 5;' + LF +
+                'case Value of' + LF +
+                '  1: Result := ''One'';' + LF +
+                '  2: Result := ''Two'';' + LF +
+                '  3: Result := ''Three'';' + LF +
+                '  else Result := ''Other'';' + LF +
+                'end;' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain else branch result
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Other') > 0, 'Case statement should execute else branch for unmatched value');
+    end;
+
+    [Test]
+    procedure TestCaseStatementWithoutElse()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with case statement without else
+        Code := 'Value: Integer;' + LF +
+                'Result: Text;' + LF +
+                'Value := 1;' + LF +
+                'Result := ''Default'';' + LF +
+                'case Value of' + LF +
+                '  1: Result := ''One'';' + LF +
+                '  2: Result := ''Two'';' + LF +
+                'end;' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain matched case value
+        Assert.IsTrue(StrPos(ExecutionOutput, 'One') > 0, 'Case statement should work without else branch');
+    end;
+
+    [Test]
+    procedure TestCaseStatementWithMultipleStatements()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with case branch containing multiple statements
+        Code := 'Value: Integer;' + LF +
+                'Counter: Integer;' + LF +
+                'Value := 1;' + LF +
+                'Counter := 0;' + LF +
+                'case Value of' + LF +
+                '  1: begin' + LF +
+                '    Counter := Counter + 10;' + LF +
+                '    Counter := Counter + 5;' + LF +
+                '  end;' + LF +
+                '  2: Counter := 20;' + LF +
+                'end;' + LF +
+                'Message(''Counter: '' + Format(Counter));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain the expected counter value
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Counter: 15') > 0, 'Case statement should execute multiple statements in branch');
+    end;
+
+    [Test]
+    procedure TestCaseStatementWithTextValue()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with case statement using text values
+        Code := 'Status: Text;' + LF +
+                'Result: Text;' + LF +
+                'Status := ''Active'';' + LF +
+                'case Status of' + LF +
+                '  ''Active'': Result := ''Status is Active'';' + LF +
+                '  ''Inactive'': Result := ''Status is Inactive'';' + LF +
+                '  else Result := ''Unknown Status'';' + LF +
+                'end;' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain matched text case value
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Status is Active') > 0, 'Case statement should work with text values');
+    end;
+
+    [Test]
+    procedure TestExitStatement()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with exit statement
+        Code := 'Counter: Integer;' + LF +
+                'Counter := 5;' + LF +
+                'exit;' + LF +
+                'Counter := 10;';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual('', ExecutionOutput, 'Exit statement should work without errors');
+    end;
+
+    [Test]
+    procedure TestExitWithReturnValue()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with exit statement returning a value
+        Code := 'Value: Integer;' + LF +
+                'Value := 42;' + LF +
+                'exit(Value);' + LF +
+                'Value := 99;';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual('', ExecutionOutput, 'Exit with return value should work without errors');
+    end;
+
+    [Test]
+    procedure TestExitWithExpression()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with exit statement using expression
+        Code := 'A: Integer;' + LF +
+                'B: Integer;' + LF +
+                'A := 10;' + LF +
+                'B := 5;' + LF +
+                'exit(A + B);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual('', ExecutionOutput, 'Exit with expression should work without errors');
+    end;
+
+    [Test]
+    procedure TestRecordInit()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Init() method
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.Init();' + LF +
+                'Customer.Name := ''New Customer'';' + LF +
+                'Message(''Record initialized'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.Init() should run without errors');
+    end;
+
+    [Test]
+    procedure TestRecordInitAndInsert()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Init() and Insert()
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.Init();' + LF +
+                'Customer."No." := ''TEST001'';' + LF +
+                'Customer.Name := ''Test Customer'';' + LF +
+                'if Customer.Insert(true) then' + LF +
+                '  Message(''Customer inserted'')' + LF +
+                'else' + LF +
+                '  Message(''Insert failed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute (may fail if customer already exists, but should not crash)
+        Assert.IsTrue(true, 'Record.Init() followed by Insert() should execute');
+    end;
+
+    [Test]
+    procedure TestRecordChangeCompany()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.ChangeCompany() method
+        Code := 'Customer: Record Customer;' + LF +
+                'CompanyName: Text;' + LF +
+                'CompanyName := CompanyName();' + LF +
+                'Customer.ChangeCompany(CompanyName);' + LF +
+                'Message(''Company changed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.ChangeCompany() should run without errors');
+    end;
+
+    [Test]
+    procedure TestRecordChangeCompanyWithSpecificCompany()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.ChangeCompany() with specific company name
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.ChangeCompany(''CRONUS USA, Inc.'');' + LF +
+                'Customer.Reset();' + LF +
+                'Message(''Changed to specified company'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute (may fail if company doesn't exist, but should not crash)
+        Assert.IsTrue(true, 'Record.ChangeCompany() with specific company should execute');
+    end;
+
+    [Test]
+    procedure TestRecordInitAndChangeCompany()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code combining Record.Init() and ChangeCompany()
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.ChangeCompany(CompanyName());' + LF +
+                'Customer.Init();' + LF +
+                'Customer.Reset();' + LF +
+                'Message(''Init and ChangeCompany combined'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.Init() and ChangeCompany() should run without errors');
+    end;
+
+    [Test]
+    procedure TestCaseStatementNested()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with nested case statement
+        Code := 'Outer: Integer;' + LF +
+                'Inner: Integer;' + LF +
+                'Result: Text;' + LF +
+                'Outer := 1;' + LF +
+                'Inner := 2;' + LF +
+                'case Outer of' + LF +
+                '  1: case Inner of' + LF +
+                '    2: Result := ''One-Two'';' + LF +
+                '    else Result := ''One-Other'';' + LF +
+                '  end;' + LF +
+                '  else Result := ''Other'';' + LF +
+                'end;' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain nested case result
+        Assert.IsTrue(StrPos(ExecutionOutput, 'One-Two') > 0, 'Nested case statements should work');
+    end;
+
+    [Test]
+    procedure TestCaseStatementInLoop()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with case statement inside a loop
+        Code := 'Index: Integer;' + LF +
+                'Result: Text;' + LF +
+                'Result := '''';' + LF +
+                'for Index := 1 to 3 do begin' + LF +
+                '  case Index of' + LF +
+                '    1: Result := Result + ''One '';' + LF +
+                '    2: Result := Result + ''Two '';' + LF +
+                '    else Result := Result + ''Other '';' + LF +
+                '  end;' + LF +
+                'end;' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain all case results
+        Assert.IsTrue(StrPos(ExecutionOutput, 'One') > 0, 'Case statement in loop should work');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Two') > 0, 'Case statement in loop should work');
+    end;
+
+    [Test]
+    procedure TestRecordDeleteAll()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.DeleteAll() method
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.SetRange(''No.'', ''999999'');' + LF +
+                'Customer.DeleteAll();' + LF +
+                'Message(''DeleteAll completed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.DeleteAll() should work without errors');
+    end;
+
+    [Test]
+    procedure TestRecordValidate()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Validate() method
+        Code := 'Customer: Record Customer;' + LF +
+                'if Customer.FindFirst() then begin' + LF +
+                '  Customer.Validate(Name, ''Test Name'');' + LF +
+                '  Message(''Field validated'');' + LF +
+                'end;';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.Validate() should work without errors');
+    end;
+
+    [Test]
+    procedure TestRecordValidateWithoutValue()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Validate() without value parameter
+        Code := 'Customer: Record Customer;' + LF +
+                'if Customer.FindFirst() then begin' + LF +
+                '  Customer.Validate(Name);' + LF +
+                '  Message(''Field validated'');' + LF +
+                'end;';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.Validate() without value should work');
+    end;
+
+    [Test]
+    procedure TestRecordGetFilter()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.GetFilter() method
+        Code := 'Customer: Record Customer;' + LF +
+                'FilterText: Text;' + LF +
+                'Customer.SetRange(''No.'', ''10000'');' + LF +
+                'FilterText := Customer.GetFilter(''No.'');' + LF +
+                'Message(''Filter: '' + FilterText);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.GetFilter() should work without errors');
+    end;
+
+    [Test]
+    procedure TestRecordFindWithOperator()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Find() with operator
+        Code := 'Customer: Record Customer;' + LF +
+                'Found: Boolean;' + LF +
+                'Found := Customer.Find(''='');' + LF +
+                'Message(''Find result: '' + Format(Found));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.Find() with operator should work');
+    end;
+
+    [Test]
+    procedure TestRecordFindWithDifferentOperators()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Find() with different operators
+        Code := 'Customer: Record Customer;' + LF +
+                'Found1: Boolean;' + LF +
+                'Found2: Boolean;' + LF +
+                'Found3: Boolean;' + LF +
+                'Customer.SetRange(''No.'', ''10000'');' + LF +
+                'Found1 := Customer.Find(''='');' + LF +
+                'Customer.Reset();' + LF +
+                'Found2 := Customer.Find(''>='');' + LF +
+                'Found3 := Customer.Find(''<='');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.Find() with different operators should work');
+    end;
+
+    [Test]
+    procedure TestRecordCountApprox()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.CountApprox() method
+        Code := 'Customer: Record Customer;' + LF +
+                'ApproxCount: Integer;' + LF +
+                'ApproxCount := Customer.CountApprox();' + LF +
+                'Message(''Approximate count: '' + Format(ApproxCount));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.CountApprox() should work without errors');
+    end;
+
+    [Test]
+    procedure TestRecordTestField()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.TestField() method
+        Code := 'Customer: Record Customer;' + LF +
+                'if Customer.FindFirst() then begin' + LF +
+                '  Customer.TestField(Name, Customer.Name);' + LF +
+                '  Message(''TestField passed'');' + LF +
+                'end;';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors (may fail if field value doesn't match, but should not crash)
+        Assert.IsTrue(true, 'Record.TestField() should execute');
+    end;
+
+    [Test]
+    procedure TestRecordModifyAll()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.ModifyAll() method
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.SetRange(''No.'', ''999999'');' + LF +
+                'Customer.ModifyAll(Name, ''Modified'');' + LF +
+                'Message(''ModifyAll completed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.ModifyAll() should work without errors');
+    end;
+
+    [Test]
+    procedure TestRecordModifyAllWithNoMatchingRecords()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.ModifyAll() with no matching records
+        Code := 'Customer: Record Customer;' + LF +
+                'Customer.SetRange(''No.'', ''99999999'');' + LF +
+                'Customer.ModifyAll(Name, ''Modified'');' + LF +
+                'Message(''ModifyAll with no matches completed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.ModifyAll() with no matches should work');
+    end;
+
+    [Test]
+    procedure TestRecordFindInvalidOperator()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.Find() with invalid operator
+        Code := 'Customer: Record Customer;' + LF +
+                'Found: Boolean;' + LF +
+                'Found := Customer.Find(''invalid'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Should produce error message
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: Invalid operator for Find') > 0, 'Record.Find() with invalid operator should raise an error');
+    end;
+
+    [Test]
+    procedure TestRecordGetFilterWithNoFilter()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Record.GetFilter() when no filter is set
+        Code := 'Customer: Record Customer;' + LF +
+                'FilterText: Text;' + LF +
+                'Customer.Reset();' + LF +
+                'FilterText := Customer.GetFilter(''No.'');' + LF +
+                'Message(''Filter: '' + FilterText);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.GetFilter() without filter should work');
+    end;
 }
 

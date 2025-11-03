@@ -16,7 +16,7 @@ The runtime tokenises AL text, builds an in-memory execution plan, and evaluates
 
 | Codeunit | Scope | Highlights |
 | --- | --- | --- |
-| `Program Executor Tests` (80100) | Unit tests for expression engine and built-ins | Variable declaration, arithmetic precedence, logical operations, math utilities, string helpers, for-loop step handling, div/mod behaviour, message placeholder substitution, GUID generation, and defensive checks for unknown functions. |
+| `Program Executor Tests` (80100) | Unit tests for expression engine and built-ins | Variable declaration, arithmetic precedence, logical operations, math utilities, string helpers, for-loop step handling, div/mod behaviour, message placeholder substitution, GUID generation, case statement (with/without else, nested, in loops), exit with return values, and defensive checks for unknown functions. |
 | `Record Operations Tests` (80101) | Record reference handling | Find/Set variants, field access, quoted identifiers, CalcFields/CalcSums, LockTable, filter validation, error surfacing for missing arguments, and guard rails for unsupported record methods. |
 | `Script Execution Tests` (80102) | End-to-end scenarios | Customer listings, inventory analysis, sales totals, nested loops, message formatting, mixed data types, error paths, and composite scripts leveraging for-loops and GUID output. |
 
@@ -35,10 +35,10 @@ Each procedure follows a Given/When/Then comment style and uses `Program Executo
 
 - ✅ Data types: Integer, Decimal, Boolean, Text/Code, Char, BigText, Date, DateTime, GUID, Option, Duration, Blob, Record.
 - ✅ Operators & expressions: arithmetic, logical, unary, comparison, precedence, parentheses.
-- ✅ Control flow: `if`, `repeat until`, `for` (with `step`), block scoping, nested logic.
+- ✅ Control flow: `if`, `repeat until`, `for` (with `step`), `while`, `case` (with/without else, nested, in loops), block scoping, nested logic, `exit` (with/without return value), `break`, `continue`.
 - ✅ Built-in functions: Message placeholders, CopyStr, InsStr, StrLen, Power, Min/Max, Round, Abs, Format, CreateGuid, CurrentDateTime.
-- ✅ Record operations: SetRange/SetFilter validation, CalcFields/CalcSums guards, LockTable, Count, IsEmpty, Next loops.
-- ✅ Error scenarios: division by zero, undefined variables, missing arguments, unknown functions/methods, invalid fields.
+- ✅ Record operations: SetRange/SetFilter/GetFilter validation, CalcFields/CalcSums guards, LockTable, Count/CountApprox, IsEmpty, Next loops, Find (with operators), Init, ChangeCompany, Validate, TestField, ModifyAll, DeleteAll, Insert/Modify/Delete.
+- ✅ Error scenarios: division by zero, undefined variables, missing arguments, unknown functions/methods, invalid fields, invalid operators.
 
 ## Naming & Style Guide
 

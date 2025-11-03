@@ -61,7 +61,8 @@ This extension enables administrators and power users to write and execute AL co
 | For loop | `for Var := From to To [step N] do ...;` | `for Index := 1 to 5 step 2 do begin ... end;` | Step must evaluate to integer |
 | Begin / End block | `begin ... end;` | `begin ... end;` | Semicolon required after `end` |
 | While loop | `while Condition do ...;` | `while Counter < 5 do begin ... end;` | Executed with limited support; prefer `repeat`/`for` |
-| Exit / Break / Continue | `exit;` | `break;` | Parsed; `break/continue` currently behave as no-ops |
+| Case statement | `case Expression of Value: Statement [else Statements] end;` | `case Status of 1: Result := 'One'; else Result := 'Other'; end;` | Supports text and numeric values; nested cases supported |
+| Exit / Break / Continue | `exit;` or `exit(Value);` | `exit;` or `exit(42);` | Parsed; `break/continue` currently behave as no-ops |
 
 ### Expressions & Operators
 
@@ -104,17 +105,26 @@ This extension enables administrators and power users to write and execute AL co
 | --- | --- | --- |
 | `FindFirst()` / `FindLast()` | Locate first/last record | Returns Boolean text |
 | `FindSet()` | Opens dataset for iteration | Returns Boolean text |
+| `Find(Operator)` | Find with operator | Supports `=`, `<>`, `<`, `>`, `<=`, `>=`; returns Boolean text |
 | `Next()` | Advances current record | Returns `Integer` count |
 | `SetRange(Field, Value[, Value2])` | Applies range filter | Field can be identifier or quoted name |
 | `SetFilter(Field, Filter)` | Applies filter expression | Supports Business Central filter syntax |
+| `GetFilter(Field)` | Get filter text from field | Returns filter expression as text |
 | `Insert(True)` / `Modify(True)` / `Delete(True)` | Persists record changes | Enforces Business Central validation; may fail without required fields |
+| `ModifyAll(Field, Value)` | Modify all filtered records | Updates all records matching current filters |
+| `DeleteAll()` | Delete all filtered records | Removes all records matching current filters |
+| `Init()` | Initialize empty record | Sets default values for all fields |
+| `Validate(Field[, Value])` | Validate field value | Simulates field entry validation; optional value parameter |
+| `TestField(Field, Value)` | Test field against value | Raises error if field value doesn't match |
 | `CalcFields(Field, ...)` | Calculates FlowFields | Raises error if field missing |
 | `CalcSums(Field, ...)` | Calculates SumIndexFields | Raises error if field missing |
 | `IsEmpty()` | Checks if record set is empty | Returns Boolean text |
-| `Count()` | Returns record count | |
+| `Count()` | Returns record count | Exact count |
+| `CountApprox()` | Returns approximate record count | Faster for large datasets |
 | `Get(...)` | Simplified record lookup | Basic record retrieval |
-| `Reset()` | Clears filters | |
+| `Reset()` | Clears filters | Removes all filters |
 | `LockTable()` | Locks records | Obeys current session permissions |
+| `ChangeCompany(CompanyName)` | Change company context | Switches record context to specified company |
 
 ## Runtime Limits
 
@@ -165,7 +175,7 @@ Message('Injected: %1', InsStr('World', 'Hello ', 1));
 
 ## Limitations & Roadmap
 
-- Procedure declarations, `case`/`of`, arrays, and complex types are not yet supported.
+- Procedure declarations, arrays, and complex types are not yet supported.
 - `break` / `continue` tokens parse but currently exit without altering loop flow.
 - `CreateDateTime(Date, Time)` returns the current DateTime rather than evaluating arguments.
 - File I/O, HTTP, and external system calls are intentionally blocked.
