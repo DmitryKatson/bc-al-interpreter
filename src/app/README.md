@@ -32,6 +32,10 @@ This extension enables administrators and power users to write and execute AL co
 
 ## Supported Syntax Overview
 
+### Procedure Support
+
+The interpreter now recognises user-defined procedures with positional parameters, local variable sections, and optional return types. Parameters are typed using standard AL keywords (for example `Integer`, `Text`, `Record Customer`) and procedures can return values via `exit(<Expression>)`. Local variables declared in the `var` section are scoped to the procedure body, and multiple procedure declarations can coexist inside the same script. Exiting from a procedure immediately stops execution of the remaining procedure statements while preserving the caller state.
+
 ### Data Types
 
 | Type | Default value | Notes |
@@ -60,9 +64,10 @@ This extension enables administrators and power users to write and execute AL co
 | Repeat / Until | `repeat ... until Condition;` | `repeat Counter += 1; until Counter = 10;` | Guarded by 10,000 iteration limit |
 | For loop | `for Var := From to To [step N] do ...;` | `for Index := 1 to 5 step 2 do begin ... end;` | Step must evaluate to integer |
 | Begin / End block | `begin ... end;` | `begin ... end;` | Semicolon required after `end` |
+| Procedure declaration | `procedure Name(Parameter: Type): ReturnType begin ... end;` | `procedure Increment() begin Counter := Counter + 1; end;` | Supports optional parameters, local `var` section, and return values via `exit()` |
 | While loop | `while Condition do ...;` | `while Counter < 5 do begin ... end;` | Executed with limited support; prefer `repeat`/`for` |
 | Case statement | `case Expression of Value: Statement [else Statements] end;` | `case Status of 1: Result := 'One'; else Result := 'Other'; end;` | Supports text and numeric values; nested cases supported |
-| Exit / Break / Continue | `exit;` or `exit(Value);` | `exit;` or `exit(42);` | Parsed; `break/continue` currently behave as no-ops |
+| Exit / Break / Continue | `exit;` or `exit(Value);` | `exit;` or `exit(42);` | `exit` immediately returns the optional value; `break`/`continue` currently behave as no-ops |
 
 ### Expressions & Operators
 
@@ -192,13 +197,15 @@ Message('Injected: %1', InsStr('World', 'Hello ', 1));
 
 ## Limitations & Roadmap
 
-- Procedure declarations, arrays, and complex types are not yet supported.
-- `break` / `continue` tokens parse but currently exit without altering loop flow.
+- Arrays and complex types are not yet supported.
+- `break` / `continue` tokens are parsed but currently produce no behavioural change inside loops.
+- `exit` outside a procedure stops script execution without exposing a return value to the caller; within a procedure it returns the evaluated expression.
 - `CreateDateTime(Date, Time)` returns the current DateTime rather than evaluating arguments.
-- `Page.Run`, `Page.RunModal`, `Report.Run`, and `Codeunit.Run` call the underlying AL runtime when GUI is allowed; in console-only mode they return success without executing UI objects. Record parameters are not yet supported.
-- `StrMenu` and `Confirm` return simulated values when run in console-only mode.
-- File I/O, HTTP, and external system calls are intentionally blocked.
-- Some advanced AL features may not be fully supported—refer to the Supported Syntax Overview for details.
+- `Page.Run`, `Page.RunModal`, `Report.Run`, and `Codeunit.Run` execute only when GUI is allowed; in console-only mode they return simulated success and ignore record parameters.
+- `StrMenu` and `Confirm` return simulated responses when run in console-only mode.
+- Procedures are pass-by-value, do not support `var` parameters, overloads, nested declarations, or complex signature types (arrays, temporary records, enums with members, etc.).
+- File I/O, HTTP, and external system calls remain intentionally blocked.
+- Some advanced AL constructs (queries, interfaces, enums with members, events) are still unsupported—consult the Supported Syntax Overview for details.
 
 ## Support & Contributions
 

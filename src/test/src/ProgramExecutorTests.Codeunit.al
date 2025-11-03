@@ -865,6 +865,82 @@ codeunit 80100 "Program Executor Tests"
     end;
 
     [Test]
+    procedure TestProcedureExecutionWithoutReturn()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with a procedure that updates a global variable
+        Code := 'Counter: Integer;' + LF +
+                'procedure Increment()' + LF +
+                'begin' + LF +
+                'Counter := Counter + 1;' + LF +
+                'end;' + LF +
+                'Counter := 5;' + LF +
+                'Increment();' + LF +
+                'Message(''Counter: %1'', Counter);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Procedure should run and update the counter
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Counter: 6') > 0, 'Procedure should increment counter');
+    end;
+
+    [Test]
+    procedure TestProcedureWithReturnValue()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with a procedure returning a value
+        Code := 'Result: Integer;' + LF +
+                'procedure DoubleValue(InputValue: Integer): Integer' + LF +
+                'begin' + LF +
+                'exit(InputValue * 2);' + LF +
+                'end;' + LF +
+                'Result := DoubleValue(21);' + LF +
+                'Message(''Result: %1'', Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Procedure should return the expected result
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Result: 42') > 0, 'Procedure should return doubled value. Output: ' + ExecutionOutput);
+    end;
+
+    [Test]
+    procedure TestProcedureWithLocalVariables()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code with a procedure that uses local variables
+        Code := 'GreetingResult: Text;' + LF +
+                'procedure MakeGreeting(): Text' + LF +
+                'var' + LF +
+                'Greeting: Text;' + LF +
+                'begin' + LF +
+                'Greeting := ''Hello World'';' + LF +
+                'exit(Greeting);' + LF +
+                'end;' + LF +
+                'GreetingResult := MakeGreeting();' + LF +
+                'Message(''Greeting: %1'', GreetingResult);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Procedure should use local scope without affecting globals
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Greeting: Hello World') > 0, 'Procedure should return greeting text. Output: ' + ExecutionOutput);
+    end;
+
+    [Test]
     procedure TestRecordInit()
     var
         Code: Text;
