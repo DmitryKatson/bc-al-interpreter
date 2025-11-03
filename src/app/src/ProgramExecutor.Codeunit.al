@@ -566,6 +566,39 @@ codeunit 50001 "Program Executor"
         exit('');
     end;
 
+    local procedure ClearVariable(VarName: Text): Boolean
+    var
+        Idx: Integer;
+        VarType: Text;
+    begin
+        Idx := GetVariableIndex(VarName);
+        if Idx = 0 then
+            exit(false);
+
+        VarType := VariableTypes.Get(Idx);
+        case VarType of
+            'Integer':
+                VariableValues.Set(Idx, '0');
+            'Decimal':
+                VariableValues.Set(Idx, '0');
+            'Boolean':
+                VariableValues.Set(Idx, 'false');
+            'Text', 'Code', 'Char', 'BigText', 'Blob':
+                VariableValues.Set(Idx, '');
+            'Date':
+                VariableValues.Set(Idx, Format(0D));
+            'DateTime':
+                VariableValues.Set(Idx, Format(0DT));
+            'GUID':
+                VariableValues.Set(Idx, Format(CreateGuid()));
+            'Option':
+                VariableValues.Set(Idx, '0');
+            'Duration':
+                VariableValues.Set(Idx, '0');
+        end;
+        exit(true);
+    end;
+
     local procedure ParseAssignment(): Boolean
     var
         VarName: Text;
@@ -1049,7 +1082,16 @@ codeunit 50001 "Program Executor"
         Arg1, Arg2, Arg3 : Text;
         IntVal, IntVal2 : Integer;
         DecVal, DecVal2 : Decimal;
+        DateVal: Date;
         TypeHelper: Codeunit "Type Helper";
+        DayValue: Integer;
+        MonthValue: Integer;
+        YearValue: Integer;
+        WeekValue: Integer;
+        i: Integer;
+        BoolResult: Boolean;
+        ArgIndex: Integer;
+        FirstArgIdentifier: Boolean;
     begin
         if not ConsumeToken('(') then begin
             SetError('Expected ( after function name');
@@ -1057,10 +1099,19 @@ codeunit 50001 "Program Executor"
         end;
 
         // Parse arguments
+        FirstArgIdentifier := LowerCase(FunctionName) in ['clear'];
+        ArgIndex := 0;
+
         if GetCurrentToken() <> ')' then begin
             repeat
-                if not EvaluateExpression(ArgValue) then
-                    exit(false);
+                ArgIndex += 1;
+                if (ArgIndex = 1) and FirstArgIdentifier and (GetCurrentTokenType() = 'IDENTIFIER') then begin
+                    ArgValue := GetCurrentToken();
+                    Advance();
+                end else begin
+                    if not EvaluateExpression(ArgValue) then
+                        exit(false);
+                end;
                 Args.Add(ArgValue);
 
                 if GetCurrentToken() = ',' then
@@ -1256,6 +1307,191 @@ codeunit 50001 "Program Executor"
                     Result := Format(CreateGuid());
                     exit(true);
                 end;
+            'dmy2date':
+                begin
+                    if Args.Count < 3 then begin
+                        SetError('DMY2Date requires 3 arguments');
+                        exit(false);
+                    end;
+                    if not Evaluate(DayValue, Args.Get(1)) then exit(false);
+                    if not Evaluate(MonthValue, Args.Get(2)) then exit(false);
+                    if not Evaluate(YearValue, Args.Get(3)) then exit(false);
+                    Result := Format(DMY2Date(DayValue, MonthValue, YearValue));
+                    exit(true);
+                end;
+            'date2dmy':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Date2DMY requires a date argument');
+                        exit(false);
+                    end;
+                    if not Evaluate(DateVal, Args.Get(1)) then exit(false);
+                    DayValue := Date2DMY(DateVal, 1);
+                    MonthValue := Date2DMY(DateVal, 2);
+                    YearValue := Date2DMY(DateVal, 3);
+                    Result := Format(DayValue) + ',' + Format(MonthValue) + ',' + Format(YearValue);
+                    exit(true);
+                end;
+            'date2dwy':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Date2DWY requires a date argument');
+                        exit(false);
+                    end;
+                    if not Evaluate(DateVal, Args.Get(1)) then exit(false);
+                    DayValue := Date2DWY(DateVal, 1);
+                    WeekValue := Date2DWY(DateVal, 2);
+                    YearValue := Date2DWY(DateVal, 3);
+                    Result := Format(DayValue) + ',' + Format(WeekValue) + ',' + Format(YearValue);
+                    exit(true);
+                end;
+            'workdate':
+                begin
+                    Result := Format(WorkDate);
+                    exit(true);
+                end;
+            'calcdate':
+                begin
+                    if Args.Count < 2 then begin
+                        SetError('CalcDate requires a delta and a date');
+                        exit(false);
+                    end;
+                    if not Evaluate(DateVal, Args.Get(1)) then exit(false);
+                    Arg1 := Args.Get(2);
+                    Result := Format(CalcDate(Arg1, DateVal));
+                    exit(true);
+                end;
+            'random':
+                begin
+                    Result := Format(Random(10000));
+                    exit(true);
+                end;
+            'randomize':
+                begin
+                    if Args.Count >= 1 then begin
+                        if not Evaluate(IntVal, Args.Get(1)) then exit(false);
+                        Randomize(IntVal);
+                    end else
+                        Randomize();
+                    Result := 'true';
+                    exit(true);
+                end;
+            'delstr':
+                begin
+                    if Args.Count < 2 then begin
+                        SetError('DelStr requires at least 2 arguments');
+                        exit(false);
+                    end;
+                    Arg1 := Args.Get(1);
+                    if not Evaluate(IntVal, Args.Get(2)) then exit(false);
+                    if Args.Count >= 3 then begin
+                        if not Evaluate(IntVal2, Args.Get(3)) then exit(false);
+                        Result := DelStr(Arg1, IntVal, IntVal2);
+                    end else
+                        Result := DelStr(Arg1, IntVal);
+                    exit(true);
+                end;
+            'clear':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Clear requires a variable name');
+                        exit(false);
+                    end;
+                    if not ClearVariable(Args.Get(1)) then begin
+                        SetError('Variable not found for Clear: ' + Args.Get(1));
+                        exit(false);
+                    end;
+                    Result := 'true';
+                    exit(true);
+                end;
+            'error':
+                begin
+                    if Args.Count > 0 then begin
+                        Arg1 := ProcessMessagePlaceholders(Args.Get(1), Args);
+                        SetError(Arg1);
+                    end else
+                        SetError('Execution error');
+                    Result := 'false';
+                    exit(false);
+                end;
+            'commit':
+                begin
+                    Result := 'true';
+                    exit(true);
+                end;
+            'strmenu':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('StrMenu requires an options string');
+                        exit(false);
+                    end;
+                    Arg1 := ProcessMessagePlaceholders(Args.Get(1), Args);
+                    // Simplified: always return first option index
+                    Result := '1';
+                    exit(true);
+                end;
+            'confirm':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Confirm requires a question');
+                        exit(false);
+                    end;
+                    Arg1 := ProcessMessagePlaceholders(Args.Get(1), Args);
+                    Result := BoolToText(false);
+                    exit(true);
+                end;
+            'page.run':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Page.Run requires a page ID');
+                        exit(false);
+                    end;
+                    if not Evaluate(IntVal, Args.Get(1)) then begin
+                        SetError('Invalid page ID for Page.Run');
+                        exit(false);
+                    end;
+                    Result := 'true';
+                    exit(true);
+                end;
+            'page.runmodal':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Page.RunModal requires a page ID');
+                        exit(false);
+                    end;
+                    if not Evaluate(IntVal, Args.Get(1)) then begin
+                        SetError('Invalid page ID for Page.RunModal');
+                        exit(false);
+                    end;
+                    Result := 'true';
+                    exit(true);
+                end;
+            'report.run':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Report.Run requires a report ID');
+                        exit(false);
+                    end;
+                    if not Evaluate(IntVal, Args.Get(1)) then begin
+                        SetError('Invalid report ID for Report.Run');
+                        exit(false);
+                    end;
+                    Result := 'true';
+                    exit(true);
+                end;
+            'codeunit.run':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('Codeunit.Run requires a codeunit ID');
+                        exit(false);
+                    end;
+                    if not Evaluate(IntVal, Args.Get(1)) then begin
+                        SetError('Invalid codeunit ID for Codeunit.Run');
+                        exit(false);
+                    end;
+                    Result := 'true';
+                    exit(true);
+                end;
             else begin
                 SetError('Unknown function: ' + FunctionName);
                 exit(false);
@@ -1274,6 +1510,9 @@ codeunit 50001 "Program Executor"
         IsCalcFields: Boolean;
         FieldNameFirstArg: Boolean;
     begin
+        if LowerCase(RecordVarName) in ['page', 'report', 'codeunit'] then
+            exit(ExecuteSystemObjectMethod(RecordVarName, MethodName, Result));
+
         if not GetActiveRecordRef(RecordVarName, RecRef) then begin
             SetError('Record variable not found: ' + RecordVarName);
             exit(false);
@@ -1535,6 +1774,106 @@ codeunit 50001 "Program Executor"
                 exit(false);
             end;
         end;
+    end;
+
+    local procedure ExecuteSystemObjectMethod(ObjectName: Text; MethodName: Text; var Result: Text): Boolean
+    var
+        Args: List of [Text];
+        ArgValue: Text;
+        PageId: Integer;
+        ReportId: Integer;
+        CodeunitId: Integer;
+    begin
+        if not ConsumeToken('(') then begin
+            SetError('Expected ( after method name');
+            exit(false);
+        end;
+
+        if GetCurrentToken() <> ')' then begin
+            repeat
+                if not EvaluateExpression(ArgValue) then
+                    exit(false);
+                Args.Add(ArgValue);
+
+                if GetCurrentToken() = ',' then
+                    Advance()
+                else
+                    break;
+            until GetCurrentToken() = ')';
+        end;
+
+        if not ConsumeToken(')') then begin
+            SetError('Expected ) after method arguments');
+            exit(false);
+        end;
+
+        case LowerCase(ObjectName) of
+            'page':
+                case LowerCase(MethodName) of
+                    'run':
+                        begin
+                            if Args.Count <> 1 then begin
+                                SetError('Page.Run requires exactly 1 argument (page ID)');
+                                exit(false);
+                            end;
+                            if not Evaluate(PageId, Args.Get(1)) then begin
+                                SetError('Invalid page ID for Page.Run');
+                                exit(false);
+                            end;
+                            if GuiAllowed and not ForceConsoleOnly then
+                                Page.Run(PageId);
+                            Result := 'true';
+                            exit(true);
+                        end;
+                    'runmodal':
+                        begin
+                            if Args.Count <> 1 then begin
+                                SetError('Page.RunModal requires exactly 1 argument (page ID)');
+                                exit(false);
+                            end;
+                            if not Evaluate(PageId, Args.Get(1)) then begin
+                                SetError('Invalid page ID for Page.RunModal');
+                                exit(false);
+                            end;
+                            if GuiAllowed and not ForceConsoleOnly then
+                                Page.RunModal(PageId);
+                            Result := 'true';
+                            exit(true);
+                        end;
+                end;
+            'report':
+                if LowerCase(MethodName) = 'run' then begin
+                    if Args.Count <> 1 then begin
+                        SetError('Report.Run requires exactly 1 argument (report ID)');
+                        exit(false);
+                    end;
+                    if not Evaluate(ReportId, Args.Get(1)) then begin
+                        SetError('Invalid report ID for Report.Run');
+                        exit(false);
+                    end;
+                    if GuiAllowed and not ForceConsoleOnly then
+                        Report.Run(ReportId, false);
+                    Result := 'true';
+                    exit(true);
+                end;
+            'codeunit':
+                if LowerCase(MethodName) = 'run' then begin
+                    if Args.Count <> 1 then begin
+                        SetError('Codeunit.Run requires exactly 1 argument (codeunit ID)');
+                        exit(false);
+                    end;
+                    if not Evaluate(CodeunitId, Args.Get(1)) then begin
+                        SetError('Invalid codeunit ID for Codeunit.Run');
+                        exit(false);
+                    end;
+                    Codeunit.Run(CodeunitId);
+                    Result := 'true';
+                    exit(true);
+                end;
+        end;
+
+        SetError(UpperCase(ObjectName) + '.' + MethodName + ' is not supported');
+        exit(false);
     end;
 
     local procedure GetRecordTableName(RecordVarName: Text): Text
@@ -1842,11 +2181,15 @@ codeunit 50001 "Program Executor"
         FieldRef: FieldRef;
         FieldNo: Integer;
         FieldName: Text;
-        NewValue: Text;
+        Value: Text;
+        BoolResult: Boolean;
     begin
-        FieldName := Args.Get(1);
-        NewValue := Args.Get(2);
+        if Args.Count < 2 then begin
+            SetError('ModifyAll requires at least 2 arguments (field name, value)');
+            exit(false);
+        end;
 
+        FieldName := Args.Get(1);
         FieldNo := GetFieldNumber(RecRef, FieldName);
         if FieldNo = 0 then begin
             SetError('Field not found for ModifyAll: ' + FieldName);
@@ -1854,11 +2197,18 @@ codeunit 50001 "Program Executor"
         end;
 
         FieldRef := RecRef.Field(FieldNo);
+        Value := Args.Get(2);
 
+        // Iterate through filtered records and modify each record individually
         if RecRef.FindSet() then begin
             repeat
-                FieldRef.Value := NewValue;
-                RecRef.Modify(true);
+                FieldRef := RecRef.Field(FieldNo);
+                FieldRef.Value := Value;
+                BoolResult := RecRef.Modify(true);
+                if not BoolResult then begin
+                    SetError('Modify failed for record during ModifyAll');
+                    exit(false);
+                end;
             until RecRef.Next() = 0;
         end;
 

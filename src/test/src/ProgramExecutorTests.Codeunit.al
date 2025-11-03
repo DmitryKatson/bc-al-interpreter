@@ -1294,5 +1294,477 @@ codeunit 80100 "Program Executor Tests"
         // [Then] Program should execute without errors
         Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Record.GetFilter() without filter should work');
     end;
+
+    [Test]
+    procedure TestDmy2DateFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using DMY2Date function
+        Code := 'MyDate: Date;' + LF +
+                'MyDate := DMY2Date(15, 3, 2024);' + LF +
+                'Message(''Date: '' + Format(MyDate));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'DMY2Date should work without errors');
+    end;
+
+    [Test]
+    procedure TestDate2DmyFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Date2DMY function
+        Code := 'MyDate: Date;' + LF +
+                'DmyResult: Text;' + LF +
+                'MyDate := Today();' + LF +
+                'DmyResult := Date2DMY(MyDate);' + LF +
+                'Message(''DMY: '' + DmyResult);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Date2DMY should work without errors');
+    end;
+
+    [Test]
+    procedure TestDate2DwyFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Date2DWY function
+        Code := 'MyDate: Date;' + LF +
+                'DwyResult: Text;' + LF +
+                'MyDate := Today();' + LF +
+                'DwyResult := Date2DWY(MyDate);' + LF +
+                'Message(''DWY: '' + DwyResult);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Date2DWY should work without errors');
+    end;
+
+    [Test]
+    procedure TestCalcDateFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using CalcDate function
+        Code := 'StartDate: Date;' + LF +
+                'ResultDate: Date;' + LF +
+                'StartDate := Today();' + LF +
+                'ResultDate := CalcDate(''+1M'', StartDate);' + LF +
+                'Message(''Result: '' + Format(ResultDate));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'CalcDate should work without errors');
+    end;
+
+    [Test]
+    procedure TestWorkDateFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using WorkDate function
+        Code := 'CurrentWorkDate: Date;' + LF +
+                'CurrentWorkDate := WorkDate();' + LF +
+                'Message(''WorkDate: '' + Format(CurrentWorkDate));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'WorkDate should work without errors');
+    end;
+
+    [Test]
+    procedure TestDelStrFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using DelStr function
+        Code := 'Source: Text;' + LF +
+                'Result: Text;' + LF +
+                'Source := ''Hello World'';' + LF +
+                'Result := DelStr(Source, 6, 6);' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should contain the modified string
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Hello') > 0, 'DelStr should delete substring correctly');
+    end;
+
+    [Test]
+    procedure TestDelStrWithoutLength()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using DelStr without length parameter
+        Code := 'Source: Text;' + LF +
+                'Result: Text;' + LF +
+                'Source := ''Hello World'';' + LF +
+                'Result := DelStr(Source, 7);' + LF +
+                'Message(Result);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'DelStr without length should work');
+    end;
+
+    [Test]
+    procedure TestRandomFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Random function
+        Code := 'RandomValue: Integer;' + LF +
+                'RandomValue := Random();' + LF +
+                'Message(''Random: '' + Format(RandomValue));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Random should work without errors');
+    end;
+
+    [Test]
+    procedure TestRandomizeFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Randomize function
+        Code := 'Randomize(42);' + LF +
+                'Message(''Randomized'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Randomize with seed should work');
+    end;
+
+    [Test]
+    procedure TestRandomizeWithoutSeed()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Randomize without seed
+        Code := 'Randomize();' + LF +
+                'Message(''Randomized'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Randomize without seed should work');
+    end;
+
+    [Test]
+    procedure TestClearFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Clear function
+        Code := 'Counter: Integer;' + LF +
+                'Name: Text;' + LF +
+                'Counter := 42;' + LF +
+                'Name := ''Test'';' + LF +
+                'Clear(Counter);' + LF +
+                'Clear(Name);' + LF +
+                'Message(''Counter: '' + Format(Counter));' + LF +
+                'Message(''Name: '' + Name);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should show cleared values
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Counter: 0') > 0, 'Clear should reset integer to 0');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Name:') > 0, 'Clear should reset text to empty');
+    end;
+
+    [Test]
+    procedure TestClearNonexistentVariable()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code trying to clear nonexistent variable
+        Code := 'Clear(NonExistent);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Should produce error message
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: Variable not found for Clear') > 0, 'Clear should error on nonexistent variable');
+    end;
+
+    [Test]
+    procedure TestErrorFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Error function
+        Code := 'Error(''Test error message'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Should produce error message
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error:') > 0, 'Error function should halt execution');
+    end;
+
+    [Test]
+    procedure TestErrorFunctionWithPlaceholders()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Error function with placeholders
+        Code := 'Error(''Error %1: %2'', ''001'', ''Something went wrong'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Should produce error message with placeholders replaced
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error:') > 0, 'Error function with placeholders should work');
+    end;
+
+    [Test]
+    procedure TestCommitFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Commit function
+        Code := 'Commit();' + LF +
+                'Message(''Committed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Commit should work without errors');
+    end;
+
+    [Test]
+    procedure TestStrMenuFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using StrMenu function
+        Code := 'Choice: Integer;' + LF +
+                'Choice := StrMenu(''Option1,Option2,Option3'');' + LF +
+                'Message(''Choice: '' + Format(Choice));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute (may return 0 if user cancels, but should not crash)
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Choice: 1') > 0, 'StrMenu should default to first option');
+    end;
+
+    [Test]
+    procedure TestConfirmFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Confirm function
+        Code := 'Result: Boolean;' + LF +
+                'Result := Confirm(''Do you want to continue?'');' + LF +
+                'Message(''Result: '' + Format(Result));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute (may return false if user cancels, but should not crash)
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Result: false') > 0, 'Confirm should return false in console mode');
+    end;
+
+    [Test]
+    procedure TestPageRunFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Page.Run function
+        Code := 'Result: Boolean;' + LF +
+                'Result := Page.Run(21);' + LF +
+                'Message(''Page.Run result: '' + Format(Result));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors (may fail if page doesn't exist, but should not crash)
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Page.Run should not raise errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Page.Run result: true') > 0, 'Page.Run should return true in console mode');
+    end;
+
+    [Test]
+    procedure TestPageRunModalFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Page.RunModal function
+        Code := 'Result: Boolean;' + LF +
+                'Result := Page.RunModal(21);' + LF +
+                'Message(''Page.RunModal result: '' + Format(Result));';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors (may fail if page doesn't exist, but should not crash)
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Page.RunModal should not raise errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Page.RunModal result: true') > 0, 'Page.RunModal should return true in console mode');
+    end;
+
+    [Test]
+    procedure TestReportRunFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Report.Run function
+        Code := 'Report.Run(1);' + LF +
+                'Message(''Report executed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors (may fail if report doesn't exist, but should not crash)
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Report.Run should not raise errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Report executed') > 0, 'Report.Run should acknowledge execution');
+    end;
+
+    [Test]
+    procedure TestCodeunitRunFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using Codeunit.Run function
+        Code := 'Codeunit.Run(130002);' + LF +
+                'Message(''Codeunit executed'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors (may fail if codeunit doesn't exist, but should not crash)
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Codeunit.Run should not raise errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Codeunit executed') > 0, 'Codeunit.Run should acknowledge execution');
+    end;
+
+    [Test]
+    procedure TestDmy2DateWithInvalidValues()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using DMY2Date with invalid arguments
+        Code := 'MyDate: Date;' + LF +
+                'MyDate := DMY2Date();';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Should produce error message
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error:') > 0, 'DMY2Date should validate arguments');
+    end;
+
+    [Test]
+    procedure TestCalcDateWithDifferentFormulas()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] AL code using CalcDate with different date formulas
+        Code := 'StartDate: Date;' + LF +
+                'Result1: Date;' + LF +
+                'Result2: Date;' + LF +
+                'StartDate := Today();' + LF +
+                'Result1 := CalcDate(''+1M'', StartDate);' + LF +
+                'Result2 := CalcDate(''-1W'', StartDate);' + LF +
+                'Message(''Results calculated'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Program should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'CalcDate with different formulas should work');
+    end;
 }
 

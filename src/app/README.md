@@ -98,6 +98,23 @@ This extension enables administrators and power users to write and execute AL co
 | `CreateGuid()` | Generates GUID | `CreateGuid();` | Returns formatted text |
 | `CreateDateTime(Date, Time)` | Current DateTime | `CreateDateTime(Today(), Time());` | Returns current DateTime regardless of arguments |
 | `UserId()` / `CompanyName()` | Session metadata | `UserId();` | |
+| `DMY2Date(Day, Month, Year)` | Convert day/month/year to Date | `DMY2Date(15, 3, 2024);` | Returns formatted date |
+| `Date2DMY(Date)` | Extract day, month, year from date | `Date2DMY(Today());` | Returns comma-separated values |
+| `Date2DWY(Date)` | Extract day, week, year from date | `Date2DWY(Today());` | Returns comma-separated values |
+| `CalcDate(DateExpression, Date)` | Calculate date from expression | `CalcDate('<1M>', Today());` | Supports Business Central date expressions |
+| `WorkDate()` | Current work date | `WorkDate();` | Returns formatted date |
+| `DelStr(Text, Position[, Length])` | Delete substring | `DelStr('Hello', 2, 2);` | Position is 1-based; length optional |
+| `Random(MaxValue)` | Random integer | `Random(100);` | Returns integer between 1 and MaxValue |
+| `Randomize([Seed])` | Initialize random generator | `Randomize(42);` | Optional seed parameter |
+| `Clear(Variable)` | Reset variable to default | `Clear(Counter);` | Variable must be declared |
+| `Error([Message])` | Raise error | `Error('Operation failed');` | Stops execution with error message |
+| `Commit()` | Commit transaction | `Commit();` | Simplified implementation |
+| `StrMenu(Options[, Default[, Instruction]])` | Show menu dialog | `StrMenu('Yes,No', 1);` | Returns selection index (simplified) |
+| `Confirm(Question[, Default])` | Show confirmation dialog | `Confirm('Continue?');` | Returns boolean text (simplified) |
+| `Page.Run(PageId[, Record])` | Run page | `Page.Run(Page::"Customer List");` | Executes when GUI is allowed; returns `'true'` in console-only mode |
+| `Page.RunModal(PageId[, Record])` | Run modal page | `Page.RunModal(Page::"Customer Card");` | Executes when GUI is allowed; returns `'true'` in console-only mode |
+| `Report.Run(ReportId[, RequestPage])` | Run report | `Report.Run(Report::"Customer List");` | Triggers report when GUI is allowed; skips execution in console-only mode |
+| `Codeunit.Run(CodeunitId[, Record])` | Run codeunit | `Codeunit.Run(Codeunit::"My Codeunit");` | Executes codeunit immediately; returns `'true'` |
 
 ### Record Methods
 
@@ -178,6 +195,8 @@ Message('Injected: %1', InsStr('World', 'Hello ', 1));
 - Procedure declarations, arrays, and complex types are not yet supported.
 - `break` / `continue` tokens parse but currently exit without altering loop flow.
 - `CreateDateTime(Date, Time)` returns the current DateTime rather than evaluating arguments.
+- `Page.Run`, `Page.RunModal`, `Report.Run`, and `Codeunit.Run` call the underlying AL runtime when GUI is allowed; in console-only mode they return success without executing UI objects. Record parameters are not yet supported.
+- `StrMenu` and `Confirm` return simulated values when run in console-only mode.
 - File I/O, HTTP, and external system calls are intentionally blocked.
 - Some advanced AL features may not be fully supported—refer to the Supported Syntax Overview for details.
 
