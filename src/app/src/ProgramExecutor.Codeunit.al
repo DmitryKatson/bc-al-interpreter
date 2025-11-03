@@ -1471,6 +1471,16 @@ codeunit 50001 "Program Executor"
                     Result := 'true';
                     exit(true);
                 end;
+            'strsubstno':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('StrSubstNo requires at least 1 argument');
+                        exit(false);
+                    end;
+                    Arg1 := ProcessMessagePlaceholders(Args.Get(1), Args);
+                    Result := Arg1;
+                    exit(true);
+                end;
             'strlen':
                 begin
                     if Args.Count < 1 then exit(false);

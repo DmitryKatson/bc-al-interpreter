@@ -85,6 +85,7 @@ The interpreter recognises user-defined procedures with positional parameters, l
 | Function | Purpose | Example | Notes |
 | --- | --- | --- | --- |
 | `Message(Text[, Arg...])` | Emits output | `Message('Customer %1', Cust.No.);` | Supports `%1..%9` placeholders |
+| `StrSubstNo(Text[, Arg...])` | Returns formatted text | `StrSubstNo('Hello %1', Name);` | Supports `%1..%9` placeholders |
 | `StrLen(Text)` | String length | `Len := StrLen(Name);` | Returns textified integer |
 | `CopyStr(Text, Start[, Length])` | Substring | `CopyStr(Code, 1, 3);` | Start is 1-based |
 | `UpperCase(Text)` / `LowerCase(Text)` | Case transforms | `UpperCase(Name);` | |

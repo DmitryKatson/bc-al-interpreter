@@ -1889,5 +1889,38 @@ codeunit 80100 "Program Executor Tests"
         // [Then] Program should execute without errors
         Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'CalcDate with different formulas should work');
     end;
+
+    [Test]
+    procedure TestStrSubstNoFunction()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'Result: Text;' + LF +
+                'Result := StrSubstNo(''Hello %1 %2'', ''AL'', 2025);' + LF +
+                'Message(Result);';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Hello AL 2025') > 0, 'StrSubstNo should replace placeholders correctly');
+    end;
+
+    [Test]
+    procedure TestStrSubstNoMissingFormat()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'Result: Text;' + LF +
+                'Result := StrSubstNo();';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Error: StrSubstNo requires at least 1 argument') > 0, 'StrSubstNo should validate argument count');
+    end;
 }
 

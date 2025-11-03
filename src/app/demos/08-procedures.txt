@@ -37,5 +37,5 @@ begin
   PrintGreeting(CustomerName);
 
   CalculateOrderTotal('S-ORD101001', OrderTotal);
-  Message('Order total for SO0001: ' + Format(OrderTotal));
+  Message('Order total for S-ORD101001: ' + Format(OrderTotal));
 end;
