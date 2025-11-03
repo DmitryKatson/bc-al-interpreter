@@ -44,7 +44,7 @@ codeunit 50000 "Interactive Code Runner Impl"
                     'No compilation or deployment required - perfect for quick diagnostics and learning!' + LF + LF +
 
                     '--- Data Types ---' + LF +
-                    'Integer, Decimal, Text, Code, Boolean, Date, DateTime, Duration' + LF +
+                    'Integer, Decimal, Text, Code (incl. Code[20]), Boolean, Date, DateTime, Duration' + LF +
                     'Char, BigText, GUID, Option, Blob, Record <Table>' + LF + LF +
 
                     '--- Variable Declaration ---' + LF +
@@ -53,6 +53,12 @@ codeunit 50000 "Interactive Code Runner Impl"
                     'IsActive: Boolean;' + LF +
                     'Price: Decimal;' + LF +
                     'Customer: Record Customer;' + LF + LF +
+
+                    '--- Procedures ---' + LF +
+                    'procedure Update(var Amount: Decimal)' + LF +
+                    'begin' + LF +
+                    '  Amount := Amount + 1;' + LF +
+                    'end;' + LF + LF +
 
                     '--- Control Flow ---' + LF +
                     'if Condition then ... [else ...];' + LF +

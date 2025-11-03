@@ -1,0 +1,41 @@
+// DEMO 8: Procedures and Reusable Logic
+// Define local procedures and call them from your program
+
+procedure PrintGreeting(CustomerName: Text)
+var
+  Greeting: Text;
+begin
+  Greeting := 'Hello ' + CustomerName + '!';
+  Message(Greeting);
+end;
+
+procedure CalculateOrderTotal(OrderNo: Code[20]; var Total: Decimal)
+var
+  SalesHeader: Record "Sales Header";
+  SalesLine: Record "Sales Line";
+begin
+  Total := 0;
+
+  SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Order);
+  SalesHeader.SetRange("No.", OrderNo);
+
+  if SalesHeader.FindFirst() then begin
+    SalesLine.SetRange("Document Type", SalesHeader."Document Type");
+    SalesLine.SetRange("Document No.", SalesHeader."No.");
+    SalesLine.CalcSums("Line Amount");
+    Total := SalesLine."Line Amount";
+  end;
+end;
+
+var
+  CustomerName: Text;
+  OrderTotal: Decimal;
+begin
+  Message('=== PROCEDURE DEMO ===');
+
+  CustomerName := 'JANE DOE';
+  PrintGreeting(CustomerName);
+
+  CalculateOrderTotal('S-ORD101001', OrderTotal);
+  Message('Order total for SO0001: ' + Format(OrderTotal));
+end;

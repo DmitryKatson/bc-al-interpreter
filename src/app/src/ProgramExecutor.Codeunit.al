@@ -598,8 +598,7 @@ codeunit 50001 "Program Executor"
     local procedure ParseVariableDeclaration(): Boolean
     var
         VarName: Text;
-        VarType: Text;
-        TableName: Text;
+        TypeDescriptor: Text;
     begin
         VarName := GetCurrentToken();
         Advance();
@@ -609,84 +608,54 @@ codeunit 50001 "Program Executor"
             exit(false);
         end;
 
-        VarType := GetCurrentToken();
-        Advance();
+        if not ParseTypeReference(TypeDescriptor) then
+            exit(false);
 
-        case LowerCase(VarType) of
-            'integer':
-                begin
-                    if not AddVariable(VarName, '0', 'Integer') then
-                        exit(false);
-                end;
-            'text', 'code':
-                begin
-                    if not AddVariable(VarName, '', 'Text') then
-                        exit(false);
-                end;
-            'boolean':
-                begin
-                    if not AddVariable(VarName, 'false', 'Boolean') then
-                        exit(false);
-                end;
-            'decimal':
-                begin
-                    if not AddVariable(VarName, '0', 'Decimal') then
-                        exit(false);
-                end;
-            'date':
-                begin
-                    if not AddVariable(VarName, Format(0D), 'Date') then
-                        exit(false);
-                end;
-            'datetime':
-                begin
-                    if not AddVariable(VarName, Format(0DT), 'DateTime') then
-                        exit(false);
-                end;
-            'record':
-                begin
-                    TableName := GetCurrentToken();
-                    Advance();
-                    if not CreateRecordVariable(VarName, TableName) then
-                        exit(false);
-                end;
-            'char':
-                begin
-                    if not AddVariable(VarName, '', 'Char') then
-                        exit(false);
-                end;
-            'bigtext':
-                begin
-                    if not AddVariable(VarName, '', 'BigText') then
-                        exit(false);
-                end;
-            'guid':
-                begin
-                    if not AddVariable(VarName, Format(CreateGuid()), 'GUID') then
-                        exit(false);
-                end;
-            'option':
-                begin
-                    if not AddVariable(VarName, '0', 'Option') then
-                        exit(false);
-                end;
-            'duration':
-                begin
-                    if not AddVariable(VarName, '0', 'Duration') then
-                        exit(false);
-                end;
-            'blob':
-                begin
-                    if not AddVariable(VarName, '', 'Blob') then
-                        exit(false);
-                end;
-            else begin
-                SetError('Unsupported type: ' + VarType + '. Supported types: Integer, Text, Code, Boolean, Date, DateTime, Decimal, Record, Char, BigText, GUID, Option, Duration, Blob. Check for copy-paste formatting issues.');
-                exit(false);
-            end;
-        end;
+        if not DeclareVariableFromSignature(VarName, TypeDescriptor) then
+            exit(false);
 
         ConsumeSemicolon();
+        exit(true);
+    end;
+
+    local procedure ParseTypeReference(var TypeDescriptor: Text): Boolean
+    var
+        BaseType: Text;
+        LengthToken: Text;
+    begin
+        if not IsTypeToken(GetCurrentTokenType()) then begin
+            SetError('Expected type specification');
+            exit(false);
+        end;
+
+        BaseType := GetCurrentToken();
+        Advance();
+        TypeDescriptor := BaseType;
+
+        if GetCurrentToken() = '[' then begin
+            Advance();
+            if (GetCurrentTokenType() <> 'NUMBER') and (GetCurrentTokenType() <> 'IDENTIFIER') then begin
+                SetError('Expected length inside [] for type ' + BaseType);
+                exit(false);
+            end;
+            LengthToken := GetCurrentToken();
+            Advance();
+            if not ConsumeToken(']') then begin
+                SetError('Expected ] after length for type ' + BaseType);
+                exit(false);
+            end;
+            TypeDescriptor := BaseType + '[' + LengthToken + ']';
+        end;
+
+        if LowerCase(BaseType) = 'record' then begin
+            if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+                SetError('Expected table name for record type');
+                exit(false);
+            end;
+            TypeDescriptor := TypeDescriptor + '|' + GetCurrentToken();
+            Advance();
+        end;
+
         exit(true);
     end;
 
@@ -3144,8 +3113,9 @@ codeunit 50001 "Program Executor"
     local procedure ParseProcedureParameters(var Signature: Text): Boolean
     var
         ParamName: Text;
-        ParamType: Text;
+        TypeDescriptor: Text;
         Separator: Text;
+        IsVarParam: Boolean;
     begin
         Signature := '';
 
@@ -3153,6 +3123,12 @@ codeunit 50001 "Program Executor"
             exit(true);
 
         repeat
+            IsVarParam := false;
+            if LowerCase(GetCurrentToken()) = 'var' then begin
+                IsVarParam := true;
+                Advance();
+            end;
+
             if GetCurrentTokenType() <> 'IDENTIFIER' then begin
                 SetError('Expected parameter name in procedure declaration');
                 exit(false);
@@ -3165,25 +3141,15 @@ codeunit 50001 "Program Executor"
                 exit(false);
             end;
 
-            if not IsTypeToken(GetCurrentTokenType()) then begin
-                SetError('Expected type name for parameter ' + ParamName);
+            if not ParseTypeReference(TypeDescriptor) then
                 exit(false);
-            end;
-            ParamType := GetCurrentToken();
-            Advance();
 
-            if LowerCase(ParamType) = 'record' then begin
-                if GetCurrentTokenType() <> 'IDENTIFIER' then begin
-                    SetError('Expected table name for record parameter ' + ParamName);
-                    exit(false);
-                end;
-                ParamType := ParamType + '|' + GetCurrentToken();
-                Advance();
-            end;
+            if IsVarParam then
+                TypeDescriptor := 'var ' + TypeDescriptor;
 
             if Signature <> '' then
                 Signature += ';';
-            Signature += ParamName + ':' + ParamType;
+            Signature += ParamName + ':' + TypeDescriptor;
 
             if (GetCurrentToken() = ',') or (GetCurrentToken() = ';') then begin
                 Separator := GetCurrentToken();
@@ -3198,7 +3164,7 @@ codeunit 50001 "Program Executor"
     local procedure ParseProcedureVariables(var Signature: Text): Boolean
     var
         VarName: Text;
-        VarType: Text;
+        TypeDescriptor: Text;
     begin
         Signature := '';
 
@@ -3211,25 +3177,12 @@ codeunit 50001 "Program Executor"
                 exit(false);
             end;
 
-            if not IsTypeToken(GetCurrentTokenType()) then begin
-                SetError('Expected type for local variable ' + VarName);
+            if not ParseTypeReference(TypeDescriptor) then
                 exit(false);
-            end;
-            VarType := GetCurrentToken();
-            Advance();
-
-            if LowerCase(VarType) = 'record' then begin
-                if GetCurrentTokenType() <> 'IDENTIFIER' then begin
-                    SetError('Expected table name for record variable ' + VarName);
-                    exit(false);
-                end;
-                VarType := VarType + '|' + GetCurrentToken();
-                Advance();
-            end;
 
             if Signature <> '' then
                 Signature += ';';
-            Signature += VarName + ':' + VarType;
+            Signature += VarName + ':' + TypeDescriptor;
 
             ConsumeSemicolon();
         end;
@@ -3328,7 +3281,10 @@ codeunit 50001 "Program Executor"
     local procedure ExecuteProcedureCall(ProcedureName: Text; var Result: Text): Boolean
     var
         Args: List of [Text];
+        ArgIdentifiers: List of [Text];
         ArgValue: Text;
+        ArgIdentifier: Text;
+        StartIndex: Integer;
     begin
         Result := '';
 
@@ -3339,9 +3295,19 @@ codeunit 50001 "Program Executor"
 
         if GetCurrentToken() <> ')' then begin
             repeat
+                ArgIdentifier := '';
+                StartIndex := CurrentTokenIndex;
+                if GetCurrentTokenType() = 'IDENTIFIER' then
+                    ArgIdentifier := GetCurrentToken();
+
                 if not EvaluateExpression(ArgValue) then
                     exit(false);
+
+                if (ArgIdentifier <> '') and (CurrentTokenIndex <> StartIndex + 1) then
+                    ArgIdentifier := '';
+
                 Args.Add(ArgValue);
+                ArgIdentifiers.Add(ArgIdentifier);
 
                 if (GetCurrentToken() = ',') or (GetCurrentToken() = ';') then
                     Advance()
@@ -3355,13 +3321,13 @@ codeunit 50001 "Program Executor"
             exit(false);
         end;
 
-        if not InvokeProcedure(ProcedureName, Args, Result) then
+        if not InvokeProcedure(ProcedureName, Args, ArgIdentifiers, Result) then
             exit(false);
 
         exit(true);
     end;
 
-    local procedure InvokeProcedure(ProcedureName: Text; Args: List of [Text]; var Result: Text): Boolean
+    local procedure InvokeProcedure(ProcedureName: Text; Args: List of [Text]; ArgIdentifiers: List of [Text]; var Result: Text): Boolean
     var
         ProcIndex: Integer;
         ParamNames: List of [Text];
@@ -3380,6 +3346,11 @@ codeunit 50001 "Program Executor"
         i: Integer;
         LocalReturnValue: Text;
         TypeDescriptor: Text;
+        VarParamOriginalNames: List of [Text];
+        VarParamParamNames: List of [Text];
+        VarParamValues: List of [Text];
+        IsVarParam: Boolean;
+        OriginalName: Text;
     begin
         ProcIndex := GetProcedureIndex(ProcedureName);
         if ProcIndex = 0 then begin
@@ -3392,6 +3363,10 @@ codeunit 50001 "Program Executor"
             SetError(ProcedureName + ' expects ' + Format(ParamNames.Count) + ' argument(s) but received ' + Format(Args.Count));
             exit(false);
         end;
+
+        Clear(VarParamOriginalNames);
+        Clear(VarParamParamNames);
+        Clear(VarParamValues);
 
         DecodeSignature(ProcedureLocalVarSignatures.Get(ProcIndex), LocalVarNames, LocalVarTypes);
 
@@ -3413,6 +3388,38 @@ codeunit 50001 "Program Executor"
         // Declare parameters
         for i := 1 to ParamNames.Count do begin
             TypeDescriptor := ParamTypes.Get(i);
+            IsVarParam := IsVarType(TypeDescriptor);
+
+            if IsVarParam then begin
+                OriginalName := '';
+                if ArgIdentifiers.Count >= i then
+                    OriginalName := ArgIdentifiers.Get(i);
+                if OriginalName = '' then begin
+                    SetError('VAR parameter ' + ParamNames.Get(i) + ' requires a variable argument');
+                    PopVariableScope(OldVariableCount, OldRecordVarCount);
+                    ProcedureExecutionDepth := OldProcedureExecutionDepth;
+                    ProcedureExitRequested := OldProcedureExitRequested;
+                    ProcedureReturnValue := OldProcedureReturnValue;
+                    CurrentTokenIndex := OldTokenIndex;
+                    CurrentExecutionEndIndex := OldExecutionEndIndex;
+                    exit(false);
+                end;
+
+                if GetVariableIndex(OriginalName) = 0 then begin
+                    SetError('Variable not found for VAR parameter: ' + OriginalName);
+                    PopVariableScope(OldVariableCount, OldRecordVarCount);
+                    ProcedureExecutionDepth := OldProcedureExecutionDepth;
+                    ProcedureExitRequested := OldProcedureExitRequested;
+                    ProcedureReturnValue := OldProcedureReturnValue;
+                    CurrentTokenIndex := OldTokenIndex;
+                    CurrentExecutionEndIndex := OldExecutionEndIndex;
+                    exit(false);
+                end;
+
+                VarParamOriginalNames.Add(OriginalName);
+                VarParamParamNames.Add(ParamNames.Get(i));
+            end;
+
             if not DeclareVariableFromSignature(ParamNames.Get(i), TypeDescriptor) then begin
                 PopVariableScope(OldVariableCount, OldRecordVarCount);
                 ProcedureExecutionDepth := OldProcedureExecutionDepth;
@@ -3461,6 +3468,10 @@ codeunit 50001 "Program Executor"
             end;
         end;
 
+        Clear(VarParamValues);
+        for i := 1 to VarParamParamNames.Count do
+            VarParamValues.Add(GetVariableValue(VarParamParamNames.Get(i)));
+
         LocalReturnValue := ProcedureReturnValue;
         if (LocalReturnValue = '') and (ProcedureReturnTypes.Get(ProcIndex) <> '') then
             LocalReturnValue := GetDefaultValueForType(NormalizeVarType(ExtractBaseType(ProcedureReturnTypes.Get(ProcIndex))));
@@ -3474,6 +3485,10 @@ codeunit 50001 "Program Executor"
         ProcedureReturnValue := OldProcedureReturnValue;
 
         PopVariableScope(OldVariableCount, OldRecordVarCount);
+
+        for i := 1 to VarParamOriginalNames.Count do
+            SetVariableValue(VarParamOriginalNames.Get(i), VarParamValues.Get(i));
+
         exit(true);
     end;
 
@@ -3482,12 +3497,14 @@ codeunit 50001 "Program Executor"
         BaseType: Text;
         NormalizedType: Text;
         SubType: Text;
+        CleanDescriptor: Text;
     begin
-        BaseType := ExtractBaseType(TypeDescriptor);
+        CleanDescriptor := StripVarModifier(TypeDescriptor);
+        BaseType := ExtractBaseType(CleanDescriptor);
         NormalizedType := NormalizeVarType(BaseType);
 
         if LowerCase(NormalizedType) = 'record' then begin
-            SubType := ExtractSubtype(TypeDescriptor);
+            SubType := ExtractSubtype(CleanDescriptor);
             if SubType = '' then begin
                 SetError('Record variable ' + VarName + ' requires a table name');
                 exit(false);
@@ -3503,6 +3520,7 @@ codeunit 50001 "Program Executor"
         Lower: Text;
     begin
         Lower := LowerCase(BaseType);
+        Lower := StripLengthSpecifier(Lower);
         case Lower of
             'integer':
                 exit('Integer');
@@ -3535,21 +3553,55 @@ codeunit 50001 "Program Executor"
         end;
     end;
 
+    local procedure IsVarType(TypeDescriptor: Text): Boolean
+    var
+        Lower: Text;
+    begin
+        Lower := LowerCase(TypeDescriptor);
+        if (StrLen(Lower) >= 4) and (CopyStr(Lower, 1, 4) = 'var ') then
+            exit(true);
+        exit(false);
+    end;
+
+    local procedure StripVarModifier(TypeDescriptor: Text): Text
+    var
+        Lower: Text;
+    begin
+        Lower := LowerCase(TypeDescriptor);
+        if (StrLen(TypeDescriptor) >= 4) and (CopyStr(Lower, 1, 4) = 'var ') then
+            exit(CopyStr(TypeDescriptor, 5));
+        exit(TypeDescriptor);
+    end;
+
+    local procedure StripLengthSpecifier(Value: Text): Text
+    var
+        Pos: Integer;
+    begin
+        Pos := StrPos(Value, '[');
+        if Pos > 0 then
+            exit(CopyStr(Value, 1, Pos - 1));
+        exit(Value);
+    end;
+
     local procedure ExtractBaseType(TypeDescriptor: Text): Text
     var
         Parts: List of [Text];
+        CleanDescriptor: Text;
     begin
-        Parts := TypeDescriptor.Split('|');
+        CleanDescriptor := StripVarModifier(TypeDescriptor);
+        Parts := CleanDescriptor.Split('|');
         if Parts.Count >= 1 then
             exit(Parts.Get(1));
-        exit(TypeDescriptor);
+        exit(CleanDescriptor);
     end;
 
     local procedure ExtractSubtype(TypeDescriptor: Text): Text
     var
         Parts: List of [Text];
+        CleanDescriptor: Text;
     begin
-        Parts := TypeDescriptor.Split('|');
+        CleanDescriptor := StripVarModifier(TypeDescriptor);
+        Parts := CleanDescriptor.Split('|');
         if Parts.Count >= 2 then
             exit(Parts.Get(2));
         exit('');

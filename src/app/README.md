@@ -34,7 +34,7 @@ This extension enables administrators and power users to write and execute AL co
 
 ### Procedure Support
 
-The interpreter now recognises user-defined procedures with positional parameters, local variable sections, and optional return types. Parameters are typed using standard AL keywords (for example `Integer`, `Text`, `Record Customer`) and procedures can return values via `exit(<Expression>)`. Local variables declared in the `var` section are scoped to the procedure body, and multiple procedure declarations can coexist inside the same script. Exiting from a procedure immediately stops execution of the remaining procedure statements while preserving the caller state.
+The interpreter recognises user-defined procedures with positional parameters, local variable sections, and optional return types. Parameters accept standard AL type keywords (for example `Integer`, `Text`, `Code[20]`, `Record Customer`) and may be marked with the `var` modifier to pass-by-reference. Procedures return values via `exit(<Expression>)`. Local variables declared in the `var` section are scoped to the procedure body, and multiple procedure declarations can coexist inside the same script. Exiting from a procedure immediately stops execution of the remaining procedure statements while preserving the caller state.
 
 ### Data Types
 
@@ -43,7 +43,7 @@ The interpreter now recognises user-defined procedures with positional parameter
 | Integer | `0` | Supports arithmetic, `div`, `mod` |
 | Decimal | `0` | Uses invariant culture in string form |
 | Boolean | `false` | Accepts `true`, `false`, `1`, `0`, `yes`, `no` |
-| Text / Code | `''` | Text joins with `+` |
+| Text / Code | `''` | Supports length qualifiers (e.g. `Code[20]`); concatenates with `+` |
 | Char | `''` | Single-character strings |
 | BigText | `''` | Treated as Text in runtime |
 | Date | `0D` | Works with `Today()` |
@@ -64,7 +64,7 @@ The interpreter now recognises user-defined procedures with positional parameter
 | Repeat / Until | `repeat ... until Condition;` | `repeat Counter += 1; until Counter = 10;` | Guarded by 10,000 iteration limit |
 | For loop | `for Var := From to To [step N] do ...;` | `for Index := 1 to 5 step 2 do begin ... end;` | Step must evaluate to integer |
 | Begin / End block | `begin ... end;` | `begin ... end;` | Semicolon required after `end` |
-| Procedure declaration | `procedure Name(Parameter: Type): ReturnType begin ... end;` | `procedure Increment() begin Counter := Counter + 1; end;` | Supports optional parameters, local `var` section, and return values via `exit()` |
+| Procedure declaration | `procedure Name(Parameter: Type): ReturnType begin ... end;` | `procedure Increment() begin Counter := Counter + 1; end;` | Supports optional parameters, `var` parameters, local `var` section, length-qualified types, and return values via `exit()` |
 | While loop | `while Condition do ...;` | `while Counter < 5 do begin ... end;` | Executed with limited support; prefer `repeat`/`for` |
 | Case statement | `case Expression of Value: Statement [else Statements] end;` | `case Status of 1: Result := 'One'; else Result := 'Other'; end;` | Supports text and numeric values; nested cases supported |
 | Exit / Break / Continue | `exit;` or `exit(Value);` | `exit;` or `exit(42);` | `exit` immediately returns the optional value; `break`/`continue` currently behave as no-ops |
@@ -203,7 +203,7 @@ Message('Injected: %1', InsStr('World', 'Hello ', 1));
 - `CreateDateTime(Date, Time)` returns the current DateTime rather than evaluating arguments.
 - `Page.Run`, `Page.RunModal`, `Report.Run`, and `Codeunit.Run` execute only when GUI is allowed; in console-only mode they return simulated success and ignore record parameters.
 - `StrMenu` and `Confirm` return simulated responses when run in console-only mode.
-- Procedures are pass-by-value, do not support `var` parameters, overloads, nested declarations, or complex signature types (arrays, temporary records, enums with members, etc.).
+- Procedures currently do not support overloads, nested declarations, or complex signature types (arrays, temporary records, enums with members, etc.).
 - File I/O, HTTP, and external system calls remain intentionally blocked.
 - Some advanced AL constructs (queries, interfaces, enums with members, events) are still unsupported—consult the Supported Syntax Overview for details.
 

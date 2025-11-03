@@ -941,6 +941,53 @@ codeunit 80100 "Program Executor Tests"
     end;
 
     [Test]
+    procedure TestProcedureParameterWithLengthType()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Procedure parameter declared with Code[20]
+        Code := 'procedure PrintCode(CustomerCode: Code[20])' + LF +
+                'begin' + LF +
+                '  Message(''Code: %1'', CustomerCode);' + LF +
+                'end;' + LF +
+                'PrintCode(''SO0001'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Message should include the code value
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Code: SO0001') > 0, 'Procedure should accept Code[20] parameter. Output: ' + ExecutionOutput);
+    end;
+
+    [Test]
+    procedure TestProcedureWithVarParameter()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Procedure with VAR parameter to modify caller variable
+        Code := 'Value: Integer;' + LF +
+                'procedure Increment(var Number: Integer)' + LF +
+                'begin' + LF +
+                '  Number := Number + 1;' + LF +
+                'end;' + LF +
+                'Value := 10;' + LF +
+                'Increment(Value);' + LF +
+                'Message(''Value: %1'', Value);';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] The Value variable should be updated by the procedure
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Value: 11') > 0, 'VAR parameter should allow procedure to modify caller variable. Output: ' + ExecutionOutput);
+    end;
+
+    [Test]
     procedure TestRecordInit()
     var
         Code: Text;
