@@ -1,5 +1,6 @@
 codeunit 50001 "Program Executor"
 {
+    #region "Interpreter Setup"
     var
         TokenList: List of [Text];
         TokenTypeList: List of [Text];
@@ -107,6 +108,10 @@ codeunit 50001 "Program Executor"
         end;
         ActiveRecordRefCount := 0;
     end;
+
+    #endregion
+
+    #region Tokenization & Navigation
 
     /// <summary>
     /// Tokenize the input code into tokens
@@ -335,6 +340,159 @@ codeunit 50001 "Program Executor"
         exit(false);
     end;
 
+    // Token navigation helpers
+    local procedure GetCurrentToken(): Text
+    begin
+        if (CurrentTokenIndex > 0) and (CurrentTokenIndex <= TokenList.Count) then
+            exit(TokenList.Get(CurrentTokenIndex));
+        exit('');
+    end;
+
+    local procedure GetCurrentTokenType(): Text
+    begin
+        if (CurrentTokenIndex > 0) and (CurrentTokenIndex <= TokenTypeList.Count) then
+            exit(TokenTypeList.Get(CurrentTokenIndex));
+        exit('');
+    end;
+
+    local procedure Advance()
+    begin
+        CurrentTokenIndex += 1;
+    end;
+
+    local procedure PeekNextToken(Expected: Text): Boolean
+    begin
+        if CurrentTokenIndex < TokenList.Count then
+            exit(TokenList.Get(CurrentTokenIndex + 1) = Expected);
+        exit(false);
+    end;
+
+    local procedure PeekTokenAt(TokenIndex: Integer): Text
+    begin
+        if (TokenIndex > 0) and (TokenIndex <= TokenList.Count) then
+            exit(TokenList.Get(TokenIndex));
+        exit('');
+    end;
+
+    local procedure PeekAheadForToken(Expected: Text): Boolean
+    var
+        i: Integer;
+    begin
+        for i := CurrentTokenIndex + 1 to TokenList.Count do begin
+            if TokenList.Get(i) = Expected then
+                exit(true);
+            if TokenList.Get(i) = ';' then
+                exit(false);
+        end;
+        exit(false);
+    end;
+
+    local procedure ConsumeToken(Expected: Text): Boolean
+    begin
+        if GetCurrentToken() = Expected then begin
+            Advance();
+            exit(true);
+        end;
+        exit(false);
+    end;
+
+    local procedure ConsumeKeyword(Expected: Text): Boolean
+    begin
+        if LowerCase(GetCurrentToken()) = LowerCase(Expected) then begin
+            Advance();
+            exit(true);
+        end;
+        exit(false);
+    end;
+
+    local procedure ConsumeSemicolon()
+    begin
+        if GetCurrentToken() = ';' then
+            Advance();
+    end;
+
+    local procedure FindKeyword(Keyword: Text; StartIndex: Integer): Integer
+    var
+        i: Integer;
+    begin
+        for i := StartIndex to TokenList.Count do begin
+            if LowerCase(TokenList.Get(i)) = LowerCase(Keyword) then
+                exit(i);
+        end;
+        exit(0);
+    end;
+
+    local procedure FindElseForIf(ThenIndex: Integer): Integer
+    var
+        i: Integer;
+        IfNestLevel: Integer;
+        BeginNestLevel: Integer;
+    begin
+        IfNestLevel := 0;
+        BeginNestLevel := 0;
+
+        for i := ThenIndex to TokenList.Count do begin
+            case LowerCase(TokenList.Get(i)) of
+                'begin':
+                    BeginNestLevel += 1;
+                'end':
+                    BeginNestLevel -= 1;
+                'if':
+                    IfNestLevel += 1;
+                'else':
+                    begin
+                        // Check if this else belongs to a nested if
+                        if IfNestLevel > 0 then begin
+                            IfNestLevel -= 1; // This else closes a nested if
+                        end else if BeginNestLevel = 0 then begin
+                            // This is our matching else (same level, not inside begin/end)
+                            exit(i);
+                        end;
+                    end;
+            end;
+
+            // If we hit a semicolon at the top level, the if statement ends without else
+            if (TokenList.Get(i) = ';') and (IfNestLevel = 0) and (BeginNestLevel = 0) then
+                exit(0);
+
+            // If begin nesting goes negative, we've exited the structure
+            if BeginNestLevel < 0 then
+                exit(0);
+        end;
+        exit(0);
+    end;
+
+    local procedure FindStatementEnd(StartIndex: Integer): Integer
+    var
+        i: Integer;
+        NestLevel: Integer;
+        Token: Text;
+    begin
+        NestLevel := 0;
+        for i := StartIndex to TokenList.Count do begin
+            Token := LowerCase(TokenList.Get(i));
+
+            case Token of
+                'begin', 'repeat':
+                    NestLevel += 1;
+                'end', 'until':
+                    if NestLevel > 0 then
+                        NestLevel -= 1;
+            end;
+
+            if (NestLevel = 0) and (TokenList.Get(i) = ';') then
+                exit(i + 1);
+        end;
+
+        exit(TokenList.Count);
+    end;
+
+    #endregion
+
+
+
+    #region Statement Parsing
+
     /// <summary>
     /// Parse and execute the tokenized code
     /// </summary>
@@ -532,6 +690,8 @@ codeunit 50001 "Program Executor"
         exit(true);
     end;
 
+    #region Variable Management
+
     local procedure CreateRecordVariable(VarName: Text; TableName: Text): Boolean
     begin
         if not AddVariable(VarName, '', 'Record') then
@@ -629,6 +789,8 @@ codeunit 50001 "Program Executor"
         end;
         exit(true);
     end;
+
+    #endregion
 
     local procedure ParseAssignment(): Boolean
     var
@@ -847,6 +1009,8 @@ codeunit 50001 "Program Executor"
         ConsumeSemicolon();
         exit(true);
     end;
+
+    #region Expression Evaluation
 
     local procedure EvaluateExpression(var Result: Text): Boolean
     begin
@@ -1092,6 +1256,161 @@ codeunit 50001 "Program Executor"
         exit(false);
     end;
 
+    // Math and comparison helpers for expression evaluation
+    local procedure CompareValues(Left: Text; Right: Text; Operator: Text): Boolean
+    var
+        LeftInt, RightInt : Integer;
+        LeftDec, RightDec : Decimal;
+        LeftEvalInt, RightEvalInt : Boolean;
+        LeftEvalDec, RightEvalDec : Boolean;
+    begin
+        LeftEvalInt := Evaluate(LeftInt, Left);
+        RightEvalInt := Evaluate(RightInt, Right);
+
+        if LeftEvalInt and RightEvalInt then begin
+            case Operator of
+                '=':
+                    exit(LeftInt = RightInt);
+                '<>':
+                    exit(LeftInt <> RightInt);
+                '<':
+                    exit(LeftInt < RightInt);
+                '>':
+                    exit(LeftInt > RightInt);
+                '<=':
+                    exit(LeftInt <= RightInt);
+                '>=':
+                    exit(LeftInt >= RightInt);
+            end;
+        end;
+
+        LeftEvalDec := Evaluate(LeftDec, Left);
+        RightEvalDec := Evaluate(RightDec, Right);
+
+        if LeftEvalDec and RightEvalDec then begin
+            case Operator of
+                '=':
+                    exit(LeftDec = RightDec);
+                '<>':
+                    exit(LeftDec <> RightDec);
+                '<':
+                    exit(LeftDec < RightDec);
+                '>':
+                    exit(LeftDec > RightDec);
+                '<=':
+                    exit(LeftDec <= RightDec);
+                '>=':
+                    exit(LeftDec >= RightDec);
+            end;
+        end;
+
+        // Text comparison
+        case Operator of
+            '=':
+                exit(Left = Right);
+            '<>':
+                exit(Left <> Right);
+            '<':
+                exit(Left < Right);
+            '>':
+                exit(Left > Right);
+            '<=':
+                exit(Left <= Right);
+            '>=':
+                exit(Left >= Right);
+        end;
+
+        exit(false);
+    end;
+
+    local procedure AddTextValues(Left: Text; Right: Text): Text
+    var
+        LeftInt, RightInt : Integer;
+        LeftDec, RightDec : Decimal;
+    begin
+        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then
+            exit(Format(LeftInt + RightInt));
+        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then
+            exit(Format(LeftDec + RightDec));
+        exit(Left + Right);
+    end;
+
+    local procedure SubtractTextValues(Left: Text; Right: Text): Text
+    var
+        LeftInt, RightInt : Integer;
+        LeftDec, RightDec : Decimal;
+    begin
+        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then
+            exit(Format(LeftInt - RightInt));
+        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then
+            exit(Format(LeftDec - RightDec));
+        exit('0');
+    end;
+
+    local procedure MultiplyTextValues(Left: Text; Right: Text): Text
+    var
+        LeftInt, RightInt : Integer;
+        LeftDec, RightDec : Decimal;
+    begin
+        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then
+            exit(Format(LeftInt * RightInt));
+        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then
+            exit(Format(LeftDec * RightDec));
+        exit('0');
+    end;
+
+    local procedure DivideTextValues(Left: Text; Right: Text): Text
+    var
+        LeftDec, RightDec : Decimal;
+    begin
+        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then begin
+            if RightDec = 0 then begin
+                SetError('Division by zero');
+                exit('0');
+            end;
+            exit(Format(LeftDec / RightDec));
+        end;
+        exit('0');
+    end;
+
+    local procedure ModTextValues(Left: Text; Right: Text): Text
+    var
+        LeftInt, RightInt : Integer;
+    begin
+        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then begin
+            if RightInt = 0 then begin
+                SetError('Modulo by zero');
+                exit('0');
+            end;
+            exit(Format(LeftInt mod RightInt));
+        end;
+        exit('0');
+    end;
+
+    local procedure NegateTextValue(Value: Text): Text
+    var
+        IntVal: Integer;
+        DecVal: Decimal;
+    begin
+        if Evaluate(IntVal, Value) then
+            exit(Format(-IntVal));
+        if Evaluate(DecVal, Value) then
+            exit(Format(-DecVal));
+        exit('0');
+    end;
+
+    local procedure TextToBool(Value: Text): Boolean
+    begin
+        exit(LowerCase(Value) in ['true', '1', 'yes']);
+    end;
+
+    local procedure BoolToText(Value: Boolean): Text
+    begin
+        if Value then
+            exit('true');
+        exit('false');
+    end;
+
     local procedure EvaluateFunctionCall(var Result: Text): Boolean
     var
         FunctionName: Text;
@@ -1113,6 +1432,10 @@ codeunit 50001 "Program Executor"
         Result := TextToBool(TextResult);
         exit(true);
     end;
+
+    #endregion
+
+    #region Built-In Library
 
     local procedure ExecuteBuiltInFunction(FunctionName: Text; var Result: Text): Boolean
     var
@@ -1537,6 +1860,59 @@ codeunit 50001 "Program Executor"
             end;
         end;
     end;
+
+    local procedure ProcessMessagePlaceholders(FormatString: Text; Args: List of [Text]): Text
+    var
+        Result: Text;
+        i: Integer;
+        Ch: Char;
+        PlaceholderNum: Text;
+        PlaceholderIndex: Integer;
+        ArgValue: Text;
+    begin
+        Result := '';
+        i := 1;
+
+        while i <= StrLen(FormatString) do begin
+            Ch := FormatString[i];
+
+            if Ch = '%' then begin
+                // Check if next character is a digit
+                if (i < StrLen(FormatString)) and IsDigit(FormatString[i + 1]) then begin
+                    // Extract the placeholder number
+                    PlaceholderNum := Format(FormatString[i + 1]);
+                    if Evaluate(PlaceholderIndex, PlaceholderNum) then begin
+                        // Convert to 1-based index for Args list (Args.Get(1) is the format string)
+                        PlaceholderIndex += 1;
+                        if PlaceholderIndex <= Args.Count then begin
+                            ArgValue := Args.Get(PlaceholderIndex);
+                            Result += ArgValue;
+                        end else begin
+                            // Missing argument, keep the placeholder
+                            Result += '%' + PlaceholderNum;
+                        end;
+                    end else begin
+                        // Not a valid number, keep the %
+                        Result += Ch;
+                    end;
+                    i += 2; // Skip both % and the digit
+                end else begin
+                    // % not followed by digit, keep it as-is
+                    Result += Ch;
+                    i += 1;
+                end;
+            end else begin
+                Result += Ch;
+                i += 1;
+            end;
+        end;
+
+        exit(Result);
+    end;
+
+    #endregion
+
+    #region Record Operations
 
     local procedure ExecuteRecordMethod(RecordVarName: Text; MethodName: Text; var Result: Text): Boolean
     var
@@ -2254,356 +2630,7 @@ codeunit 50001 "Program Executor"
         exit(true);
     end;
 
-    // Math and comparison helpers
-    local procedure CompareValues(Left: Text; Right: Text; Operator: Text): Boolean
-    var
-        LeftInt, RightInt : Integer;
-        LeftDec, RightDec : Decimal;
-        LeftEvalInt, RightEvalInt : Boolean;
-        LeftEvalDec, RightEvalDec : Boolean;
-    begin
-        LeftEvalInt := Evaluate(LeftInt, Left);
-        RightEvalInt := Evaluate(RightInt, Right);
-
-        if LeftEvalInt and RightEvalInt then begin
-            case Operator of
-                '=':
-                    exit(LeftInt = RightInt);
-                '<>':
-                    exit(LeftInt <> RightInt);
-                '<':
-                    exit(LeftInt < RightInt);
-                '>':
-                    exit(LeftInt > RightInt);
-                '<=':
-                    exit(LeftInt <= RightInt);
-                '>=':
-                    exit(LeftInt >= RightInt);
-            end;
-        end;
-
-        LeftEvalDec := Evaluate(LeftDec, Left);
-        RightEvalDec := Evaluate(RightDec, Right);
-
-        if LeftEvalDec and RightEvalDec then begin
-            case Operator of
-                '=':
-                    exit(LeftDec = RightDec);
-                '<>':
-                    exit(LeftDec <> RightDec);
-                '<':
-                    exit(LeftDec < RightDec);
-                '>':
-                    exit(LeftDec > RightDec);
-                '<=':
-                    exit(LeftDec <= RightDec);
-                '>=':
-                    exit(LeftDec >= RightDec);
-            end;
-        end;
-
-        // Text comparison
-        case Operator of
-            '=':
-                exit(Left = Right);
-            '<>':
-                exit(Left <> Right);
-            '<':
-                exit(Left < Right);
-            '>':
-                exit(Left > Right);
-            '<=':
-                exit(Left <= Right);
-            '>=':
-                exit(Left >= Right);
-        end;
-
-        exit(false);
-    end;
-
-    local procedure AddTextValues(Left: Text; Right: Text): Text
-    var
-        LeftInt, RightInt : Integer;
-        LeftDec, RightDec : Decimal;
-    begin
-        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then
-            exit(Format(LeftInt + RightInt));
-        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then
-            exit(Format(LeftDec + RightDec));
-        exit(Left + Right);
-    end;
-
-    local procedure SubtractTextValues(Left: Text; Right: Text): Text
-    var
-        LeftInt, RightInt : Integer;
-        LeftDec, RightDec : Decimal;
-    begin
-        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then
-            exit(Format(LeftInt - RightInt));
-        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then
-            exit(Format(LeftDec - RightDec));
-        exit('0');
-    end;
-
-    local procedure MultiplyTextValues(Left: Text; Right: Text): Text
-    var
-        LeftInt, RightInt : Integer;
-        LeftDec, RightDec : Decimal;
-    begin
-        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then
-            exit(Format(LeftInt * RightInt));
-        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then
-            exit(Format(LeftDec * RightDec));
-        exit('0');
-    end;
-
-    local procedure DivideTextValues(Left: Text; Right: Text): Text
-    var
-        LeftDec, RightDec : Decimal;
-    begin
-        if Evaluate(LeftDec, Left) and Evaluate(RightDec, Right) then begin
-            if RightDec = 0 then begin
-                SetError('Division by zero');
-                exit('0');
-            end;
-            exit(Format(LeftDec / RightDec));
-        end;
-        exit('0');
-    end;
-
-    local procedure ModTextValues(Left: Text; Right: Text): Text
-    var
-        LeftInt, RightInt : Integer;
-    begin
-        if Evaluate(LeftInt, Left) and Evaluate(RightInt, Right) then begin
-            if RightInt = 0 then begin
-                SetError('Modulo by zero');
-                exit('0');
-            end;
-            exit(Format(LeftInt mod RightInt));
-        end;
-        exit('0');
-    end;
-
-    local procedure NegateTextValue(Value: Text): Text
-    var
-        IntVal: Integer;
-        DecVal: Decimal;
-    begin
-        if Evaluate(IntVal, Value) then
-            exit(Format(-IntVal));
-        if Evaluate(DecVal, Value) then
-            exit(Format(-DecVal));
-        exit('0');
-    end;
-
-    local procedure TextToBool(Value: Text): Boolean
-    begin
-        exit(LowerCase(Value) in ['true', '1', 'yes']);
-    end;
-
-    local procedure BoolToText(Value: Boolean): Text
-    begin
-        if Value then
-            exit('true');
-        exit('false');
-    end;
-
-    // Token navigation helpers
-    local procedure GetCurrentToken(): Text
-    begin
-        if (CurrentTokenIndex > 0) and (CurrentTokenIndex <= TokenList.Count) then
-            exit(TokenList.Get(CurrentTokenIndex));
-        exit('');
-    end;
-
-    local procedure GetCurrentTokenType(): Text
-    begin
-        if (CurrentTokenIndex > 0) and (CurrentTokenIndex <= TokenTypeList.Count) then
-            exit(TokenTypeList.Get(CurrentTokenIndex));
-        exit('');
-    end;
-
-    local procedure Advance()
-    begin
-        CurrentTokenIndex += 1;
-    end;
-
-    local procedure PeekNextToken(Expected: Text): Boolean
-    begin
-        if CurrentTokenIndex < TokenList.Count then
-            exit(TokenList.Get(CurrentTokenIndex + 1) = Expected);
-        exit(false);
-    end;
-
-    local procedure PeekTokenAt(TokenIndex: Integer): Text
-    begin
-        if (TokenIndex > 0) and (TokenIndex <= TokenList.Count) then
-            exit(TokenList.Get(TokenIndex));
-        exit('');
-    end;
-
-    local procedure PeekAheadForToken(Expected: Text): Boolean
-    var
-        i: Integer;
-    begin
-        for i := CurrentTokenIndex + 1 to TokenList.Count do begin
-            if TokenList.Get(i) = Expected then
-                exit(true);
-            if TokenList.Get(i) = ';' then
-                exit(false);
-        end;
-        exit(false);
-    end;
-
-    local procedure ConsumeToken(Expected: Text): Boolean
-    begin
-        if GetCurrentToken() = Expected then begin
-            Advance();
-            exit(true);
-        end;
-        exit(false);
-    end;
-
-    local procedure ConsumeKeyword(Expected: Text): Boolean
-    begin
-        if LowerCase(GetCurrentToken()) = LowerCase(Expected) then begin
-            Advance();
-            exit(true);
-        end;
-        exit(false);
-    end;
-
-    local procedure ConsumeSemicolon()
-    begin
-        if GetCurrentToken() = ';' then
-            Advance();
-    end;
-
-    local procedure FindKeyword(Keyword: Text; StartIndex: Integer): Integer
-    var
-        i: Integer;
-    begin
-        for i := StartIndex to TokenList.Count do begin
-            if LowerCase(TokenList.Get(i)) = LowerCase(Keyword) then
-                exit(i);
-        end;
-        exit(0);
-    end;
-
-    local procedure FindElseForIf(ThenIndex: Integer): Integer
-    var
-        i: Integer;
-        IfNestLevel: Integer;
-        BeginNestLevel: Integer;
-    begin
-        IfNestLevel := 0;
-        BeginNestLevel := 0;
-
-        for i := ThenIndex to TokenList.Count do begin
-            case LowerCase(TokenList.Get(i)) of
-                'begin':
-                    BeginNestLevel += 1;
-                'end':
-                    BeginNestLevel -= 1;
-                'if':
-                    IfNestLevel += 1;
-                'else':
-                    begin
-                        // Check if this else belongs to a nested if
-                        if IfNestLevel > 0 then begin
-                            IfNestLevel -= 1; // This else closes a nested if
-                        end else if BeginNestLevel = 0 then begin
-                            // This is our matching else (same level, not inside begin/end)
-                            exit(i);
-                        end;
-                    end;
-            end;
-
-            // If we hit a semicolon at the top level, the if statement ends without else
-            if (TokenList.Get(i) = ';') and (IfNestLevel = 0) and (BeginNestLevel = 0) then
-                exit(0);
-
-            // If begin nesting goes negative, we've exited the structure
-            if BeginNestLevel < 0 then
-                exit(0);
-        end;
-        exit(0);
-    end;
-
-    local procedure FindStatementEnd(StartIndex: Integer): Integer
-    var
-        i: Integer;
-        NestLevel: Integer;
-        Token: Text;
-    begin
-        NestLevel := 0;
-        for i := StartIndex to TokenList.Count do begin
-            Token := LowerCase(TokenList.Get(i));
-
-            case Token of
-                'begin', 'repeat':
-                    NestLevel += 1;
-                'end', 'until':
-                    if NestLevel > 0 then
-                        NestLevel -= 1;
-            end;
-
-            if (NestLevel = 0) and (TokenList.Get(i) = ';') then
-                exit(i + 1);
-        end;
-
-        exit(TokenList.Count);
-    end;
-
-    local procedure ProcessMessagePlaceholders(FormatString: Text; Args: List of [Text]): Text
-    var
-        Result: Text;
-        i: Integer;
-        Ch: Char;
-        PlaceholderNum: Text;
-        PlaceholderIndex: Integer;
-        ArgValue: Text;
-    begin
-        Result := '';
-        i := 1;
-
-        while i <= StrLen(FormatString) do begin
-            Ch := FormatString[i];
-
-            if Ch = '%' then begin
-                // Check if next character is a digit
-                if (i < StrLen(FormatString)) and IsDigit(FormatString[i + 1]) then begin
-                    // Extract the placeholder number
-                    PlaceholderNum := Format(FormatString[i + 1]);
-                    if Evaluate(PlaceholderIndex, PlaceholderNum) then begin
-                        // Convert to 1-based index for Args list (Args.Get(1) is the format string)
-                        PlaceholderIndex += 1;
-                        if PlaceholderIndex <= Args.Count then begin
-                            ArgValue := Args.Get(PlaceholderIndex);
-                            Result += ArgValue;
-                        end else begin
-                            // Missing argument, keep the placeholder
-                            Result += '%' + PlaceholderNum;
-                        end;
-                    end else begin
-                        // Not a valid number, keep the %
-                        Result += Ch;
-                    end;
-                    i += 2; // Skip both % and the digit
-                end else begin
-                    // % not followed by digit, keep it as-is
-                    Result += Ch;
-                    i += 1;
-                end;
-            end else begin
-                Result += Ch;
-                i += 1;
-            end;
-        end;
-
-        exit(Result);
-    end;
+    #endregion
 
     local procedure SetError(ErrMsg: Text)
     begin
@@ -3030,6 +3057,10 @@ codeunit 50001 "Program Executor"
         CurrentTokenIndex := LoopEndIndex;
         exit(true);
     end;
+
+    #endregion
+
+    #region Procedure Runtime
 
     local procedure ParseProcedureDeclaration(): Boolean
     var
@@ -3598,6 +3629,8 @@ codeunit 50001 "Program Executor"
         end;
         exit(false);
     end;
+
+    #endregion
 
     local procedure IsTypeToken(TokenType: Text): Boolean
     begin
