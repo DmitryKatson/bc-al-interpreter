@@ -4079,39 +4079,10 @@ codeunit 50001 "Program Executor"
                             exit(false);
                         end;
 
-                        if GetCurrentToken() = '<>' then begin
-                            FilterOperator := '<>';
-                            Advance();
-                        end else if GetCurrentToken() = '<=' then begin
-                            FilterOperator := '<=';
-                            Advance();
-                        end else if GetCurrentToken() = '>=' then begin
-                            FilterOperator := '>=';
-                            Advance();
-                        end else if GetCurrentToken() in ['=', '<', '>'] then begin
-                            FilterOperator := GetCurrentToken();
-                            Advance();
-                        end else begin
-                            SetError('Expected filter operator (e.g., =, <>, <, >, <=, >=) in DataItemTableFilter');
+                        FilterValue := '';
+                        if not CollectParenthesizedExpression(FilterValue) then begin
+                            SetError('Invalid filter expression in DataItemTableFilter');
                             exit(false);
-                        end;
-
-                        FilterValueTokenType := '';
-
-                        if GetCurrentToken() = ')' then
-                            FilterValue := ''''''
-                        else begin
-                            FilterValue := GetCurrentToken();
-                            FilterValueTokenType := GetCurrentTokenType();
-
-                            if (FilterValueTokenType = 'STRING') and (FilterValue = '') then
-                                FilterValue := ''''''
-                            else if FilterValueTokenType = 'STRING' then begin
-                                if (StrLen(FilterValue) < 2) or (FilterValue[1] <> '''') or (FilterValue[StrLen(FilterValue)] <> '''') then
-                                    FilterValue := '''' + FilterValue + '''';
-                            end;
-
-                            Advance();
                         end;
 
                         if not ConsumeToken(')') then begin
@@ -4146,10 +4117,8 @@ codeunit 50001 "Program Executor"
                 end;
             end;
 
-            // Build filter definition: FieldName=OperatorValue
-            // For empty string, ensure we have quotes: <>''
-            // For other values, use as-is: =true, =1, ='value'
-            Definition := FieldName + '=' + FilterOperator + FilterValue;
+            // Build filter definition: FieldName=Expression (expression already formatted)
+            Definition := FieldName + '=' + FilterValue;
             TableFilterDefinitions.Add(Definition);
 
             // Check for comma separator (more filters)
