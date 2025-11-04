@@ -3,12 +3,23 @@
 
 query CustomerBalances
 {
-  dataitem(Customer; Customer)
+  elements
   {
-    filter("Blocked"; '<>All');
-    column(NoColumn; "No.")
-    column(NameColumn; Name)
-    column(BalanceLCY;"Balance (LCY)")
+    dataitem(Customer; Customer)
+    {
+      DataItemTableFilter = "Blocked" = filter(<> All);
+      column(NoColumn; "No.")
+      {
+      }
+      column(NameColumn; Name)
+      {
+      }
+      column(BalanceLCY; "Balance (LCY)")
+      {
+        ColumnFilter = BalanceLCY = filter(<> 0);
+        Method = Sum;
+      }
+    }
   }
 }
 
@@ -21,20 +32,32 @@ end;
 
 query SalesOrdersWithLines
 {
-  dataitem(SalesHeader; "Sales Header")
+  elements
   {
-    filter("Document Type"; 'Order')
-    filter("Sell-to Customer No."; '10000')
-    column(OrderNo; "No.")
-    column(CustomerNo; "Sell-to Customer No.")
-
-    dataitem(SalesLines; "Sales Line")
+    dataitem(SalesHeader; "Sales Header")
     {
-      DataItemLink = "Document No." = SalesHeader."No.";
-      filter("Document Type"; 'Order')
-      column(LineNo; "Line No.")
-      column(ItemNo; "No.")
-      column(Quantity; Quantity)
+      DataItemTableFilter = "Document Type" = const(Order), "Sell-to Customer No." = const(10000);
+      column(OrderNo; "No.")
+      {
+      }
+      column(CustomerNo; "Sell-to Customer No.")
+      {
+      }
+
+      dataitem(SalesLines; "Sales Line")
+      {
+        DataItemLink = "Document No." = SalesHeader."No.";
+        DataItemTableFilter = "Document Type" = const(Order);
+        column(LineNo; "Line No.")
+        {
+        }
+        column(ItemNo; "No.")
+        {
+        }
+        column(Quantity; Quantity)
+        {
+        }
+      }
     }
   }
 }
@@ -48,18 +71,34 @@ end;
 
 query BankLedgerWithAccount
 {
-  dataitem(BankLedger; "Bank Account Ledger Entry")
+  elements
   {
-    column(EntryNo; "Entry No.")
-    column(AccountNo; "Bank Account No.")
-    column(PostingDate; "Posting Date")
-    column(AmountLCY; "Amount (LCY)")
-
-    dataitem(BankAccount; "Bank Account")
+    dataitem(BankLedger; "Bank Account Ledger Entry")
     {
-      DataItemLink = "No." = BankLedger."Bank Account No.";
-      column(AccountName; Name)
-      column(Currency; "Currency Code")
+      DataItemTableFilter = Open = filter(= true);
+      column(EntryNo; "Entry No.")
+      {
+      }
+      column(AccountNo; "Bank Account No.")
+      {
+      }
+      column(PostingDate; "Posting Date")
+      {
+      }
+      column(AmountLCY; "Amount (LCY)")
+      {
+      }
+
+      dataitem(BankAccount; "Bank Account")
+      {
+        DataItemLink = "No." = BankLedger."Bank Account No.";
+        column(AccountName; Name)
+        {
+        }
+        column(Currency; "Currency Code")
+        {
+        }
+      }
     }
   }
 }

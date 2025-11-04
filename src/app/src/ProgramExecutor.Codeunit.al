@@ -3895,11 +3895,17 @@ codeunit 50001 "Program Executor"
         DataItemName: Text;
         TableName: Text;
         ColumnDefinitions: List of [Text];
+        ColumnFilterDefinitions: List of [Text];
+        ColumnMethodDefinitions: List of [Text];
         FilterDefinitions: List of [Text];
         LinkDefinitions: List of [Text];
+        TableFilterDefinitions: List of [Text];
         ColumnSpec: Text;
         FilterSpec: Text;
         LinkSpec: Text;
+        TableFilterSpec: Text;
+        ColumnFilterSpec: Text;
+        ColumnMethodSpec: Text;
         TokenText: Text;
     begin
         Advance(); // Skip 'dataitem'
@@ -3939,8 +3945,11 @@ codeunit 50001 "Program Executor"
         end;
 
         Clear(ColumnDefinitions);
+        Clear(ColumnFilterDefinitions);
+        Clear(ColumnMethodDefinitions);
         Clear(FilterDefinitions);
         Clear(LinkDefinitions);
+        Clear(TableFilterDefinitions);
 
         while CurrentTokenIndex <= TokenList.Count do begin
             if GetCurrentToken() = '}' then
@@ -3951,7 +3960,7 @@ codeunit 50001 "Program Executor"
             case TokenText of
                 'column':
                     begin
-                        if not ParseQueryColumn(ColumnDefinitions) then
+                        if not ParseQueryColumn(ColumnDefinitions, ColumnFilterDefinitions, ColumnMethodDefinitions) then
                             exit(false);
                         continue;
                     end;
@@ -3964,6 +3973,12 @@ codeunit 50001 "Program Executor"
                 'dataitemlink':
                     begin
                         if not ParseQueryDataItemLink(LinkDefinitions) then
+                            exit(false);
+                        continue;
+                    end;
+                'dataitemtablefilter':
+                    begin
+                        if not ParseQueryDataItemTableFilter(TableFilterDefinitions) then
                             exit(false);
                         continue;
                     end;
@@ -4003,10 +4018,150 @@ codeunit 50001 "Program Executor"
         end;
 
         ColumnSpec := JoinWithSeparator(ColumnDefinitions, ',');
+        ColumnFilterSpec := JoinWithSeparator(ColumnFilterDefinitions, ',');
+        ColumnMethodSpec := JoinWithSeparator(ColumnMethodDefinitions, ',');
         FilterSpec := JoinWithSeparator(FilterDefinitions, ',');
         LinkSpec := JoinWithSeparator(LinkDefinitions, ',');
+        TableFilterSpec := JoinWithSeparator(TableFilterDefinitions, ',');
 
-        DataItemDefinitions.Add(DataItemName + '|' + TableName + '|' + ColumnSpec + '|' + FilterSpec + '|' + ParentName + '|' + LinkSpec);
+        DataItemDefinitions.Add(DataItemName + '|' + TableName + '|' + ColumnSpec + '|' + FilterSpec + '|' + ParentName + '|' + LinkSpec + '|' + TableFilterSpec + '|' + ColumnFilterSpec + '|' + ColumnMethodSpec);
+        exit(true);
+    end;
+
+    local procedure ParseQueryDataItemTableFilter(var TableFilterDefinitions: List of [Text]): Boolean
+    var
+        FieldName: Text;
+        FilterOperator: Text;
+        FilterValue: Text;
+        Definition: Text;
+        FieldNameTokenType: Text;
+        FilterValueTokenType: Text;
+    begin
+        Advance(); // Skip 'dataitemtablefilter'
+
+        if not ConsumeToken('=') then begin
+            SetError('Expected = after DataItemTableFilter');
+            exit(false);
+        end;
+
+        // Parse comma-separated list of filter expressions: "Field" = filter(operator value), ...
+        repeat
+            // Field name (may be quoted)
+            if (GetCurrentTokenType() = 'IDENTIFIER') or (GetCurrentTokenType() = 'STRING') then begin
+                FieldName := GetCurrentToken();
+                FieldNameTokenType := GetCurrentTokenType();
+                // Strip quotes if field name is a string token
+                if FieldNameTokenType = 'STRING' then begin
+                    if (StrLen(FieldName) >= 2) and (FieldName[1] = '''') and (FieldName[StrLen(FieldName)] = '''') then
+                        FieldName := CopyStr(FieldName, 2, StrLen(FieldName) - 2);
+                end;
+                Advance();
+            end else begin
+                SetError('Expected field name in DataItemTableFilter');
+                exit(false);
+            end;
+
+            if not ConsumeToken('=') then begin
+                SetError('Expected = after field name in DataItemTableFilter');
+                exit(false);
+            end;
+
+            // Parse filter or const expression
+            FilterOperator := '';
+            FilterValue := '';
+
+            case LowerCase(GetCurrentToken()) of
+                'filter':
+                    begin
+                        Advance();
+                        if not ConsumeToken('(') then begin
+                            SetError('Expected ( after filter in DataItemTableFilter');
+                            exit(false);
+                        end;
+
+                        if GetCurrentToken() = '<>' then begin
+                            FilterOperator := '<>';
+                            Advance();
+                        end else if GetCurrentToken() = '<=' then begin
+                            FilterOperator := '<=';
+                            Advance();
+                        end else if GetCurrentToken() = '>=' then begin
+                            FilterOperator := '>=';
+                            Advance();
+                        end else if GetCurrentToken() in ['=', '<', '>'] then begin
+                            FilterOperator := GetCurrentToken();
+                            Advance();
+                        end else begin
+                            SetError('Expected filter operator (e.g., =, <>, <, >, <=, >=) in DataItemTableFilter');
+                            exit(false);
+                        end;
+
+                        FilterValueTokenType := '';
+
+                        if GetCurrentToken() = ')' then
+                            FilterValue := ''''''
+                        else begin
+                            FilterValue := GetCurrentToken();
+                            FilterValueTokenType := GetCurrentTokenType();
+
+                            if (FilterValueTokenType = 'STRING') and (FilterValue = '') then
+                                FilterValue := ''''''
+                            else if FilterValueTokenType = 'STRING' then begin
+                                if (StrLen(FilterValue) < 2) or (FilterValue[1] <> '''') or (FilterValue[StrLen(FilterValue)] <> '''') then
+                                    FilterValue := '''' + FilterValue + '''';
+                            end;
+
+                            Advance();
+                        end;
+
+                        if not ConsumeToken(')') then begin
+                            SetError('Expected ) after filter expression in DataItemTableFilter');
+                            exit(false);
+                        end;
+                    end;
+                'const':
+                    begin
+                        FilterOperator := '=';
+                        Advance();
+                        if not ConsumeToken('(') then begin
+                            SetError('Expected ( after const in DataItemTableFilter');
+                            exit(false);
+                        end;
+
+                        if not CollectParenthesizedExpression(FilterValue) then begin
+                            SetError('Invalid const expression in DataItemTableFilter');
+                            exit(false);
+                        end;
+
+                        if not ConsumeToken(')') then begin
+                            SetError('Expected ) after const expression in DataItemTableFilter');
+                            exit(false);
+                        end;
+
+                        FilterValue := NormalizeConstExpression(FilterValue);
+                    end;
+                else begin
+                    SetError('Expected filter or const keyword in DataItemTableFilter');
+                    exit(false);
+                end;
+            end;
+
+            // Build filter definition: FieldName=OperatorValue
+            // For empty string, ensure we have quotes: <>''
+            // For other values, use as-is: =true, =1, ='value'
+            Definition := FieldName + '=' + FilterOperator + FilterValue;
+            TableFilterDefinitions.Add(Definition);
+
+            // Check for comma separator (more filters)
+            if GetCurrentToken() = ',' then begin
+                Advance();
+                continue;
+            end;
+
+            break;
+        until false;
+
+        ConsumeSemicolon();
         exit(true);
     end;
 
@@ -4080,12 +4235,20 @@ codeunit 50001 "Program Executor"
         exit(true);
     end;
 
-    local procedure ParseQueryColumn(var ColumnDefinitions: List of [Text]): Boolean
+    local procedure ParseQueryColumn(var ColumnDefinitions: List of [Text]; var ColumnFilterDefinitions: List of [Text]; var ColumnMethodDefinitions: List of [Text]): Boolean
     var
         ColumnName: Text;
         FieldName: Text;
         Definition: Text;
+        ColumnFilterExpr: Text;
+        ColumnMethod: Text;
+        TokenText: Text;
+        FilterExpression: Text;
+        FilterAlias: Text;
     begin
+        ColumnFilterExpr := '';
+        ColumnMethod := '';
+
         Advance(); // Skip 'column'
 
         if not ConsumeToken('(') then begin
@@ -4118,20 +4281,122 @@ codeunit 50001 "Program Executor"
         end;
 
         if GetCurrentToken() = '{' then begin
-            if not SkipCurlyBlock() then
+            Advance();
+            while (CurrentTokenIndex <= TokenList.Count) and (GetCurrentToken() <> '}') do begin
+                TokenText := LowerCase(GetCurrentToken());
+
+                case TokenText of
+                    'columnfilter':
+                        begin
+                            Advance();
+                            if not ConsumeToken('=') then begin
+                                SetError('Expected = after ColumnFilter');
+                                exit(false);
+                            end;
+
+                            if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+                                SetError('Expected column identifier in ColumnFilter');
+                                exit(false);
+                            end;
+                            FilterAlias := GetCurrentToken();
+                            Advance();
+
+                            if not ConsumeToken('=') then begin
+                                SetError('Expected = after ColumnFilter alias ' + FilterAlias);
+                                exit(false);
+                            end;
+
+                            TokenText := LowerCase(GetCurrentToken());
+                            if TokenText = 'filter' then begin
+                                Advance();
+                                if not ConsumeToken('(') then begin
+                                    SetError('Expected ( after filter in ColumnFilter');
+                                    exit(false);
+                                end;
+
+                                if not CollectParenthesizedExpression(FilterExpression) then begin
+                                    SetError('Invalid filter expression in ColumnFilter');
+                                    exit(false);
+                                end;
+
+                                if not ConsumeToken(')') then begin
+                                    SetError('Expected ) after filter expression in ColumnFilter');
+                                    exit(false);
+                                end;
+
+                                ColumnFilterExpr := FilterExpression;
+                            end else if TokenText = 'const' then begin
+                                Advance();
+                                if not ConsumeToken('(') then begin
+                                    SetError('Expected ( after const in ColumnFilter');
+                                    exit(false);
+                                end;
+
+                                if not CollectParenthesizedExpression(FilterExpression) then begin
+                                    SetError('Invalid const expression in ColumnFilter');
+                                    exit(false);
+                                end;
+
+                                if not ConsumeToken(')') then begin
+                                    SetError('Expected ) after const expression in ColumnFilter');
+                                    exit(false);
+                                end;
+
+                                ColumnFilterExpr := NormalizeConstExpression(FilterExpression);
+                            end else begin
+                                SetError('Unsupported ColumnFilter expression');
+                                exit(false);
+                            end;
+
+                            ConsumeSemicolon();
+                            continue;
+                        end;
+                    'method':
+                        begin
+                            Advance();
+                            if not ConsumeToken('=') then begin
+                                SetError('Expected = after Method');
+                                exit(false);
+                            end;
+
+                            if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+                                SetError('Expected method name in column definition');
+                                exit(false);
+                            end;
+                            ColumnMethod := GetCurrentToken();
+                            Advance();
+                            ConsumeSemicolon();
+                            continue;
+                        end;
+                end;
+
+                // Skip unknown property or statements within column block
+                while (CurrentTokenIndex <= TokenList.Count) and (GetCurrentToken() <> ';') and (GetCurrentToken() <> '}') do
+                    Advance();
+                ConsumeSemicolon();
+            end;
+
+            if not ConsumeToken('}') then begin
+                SetError('Expected } to close column properties for ' + ColumnName);
                 exit(false);
+            end;
         end;
 
         Definition := ColumnName + ':' + FieldName;
         ColumnDefinitions.Add(Definition);
+        ColumnFilterDefinitions.Add(ColumnFilterExpr);
+        ColumnMethodDefinitions.Add(ColumnMethod);
         exit(true);
     end;
 
     local procedure ParseQueryFilter(var FilterDefinitions: List of [Text]): Boolean
     var
+        FilterName: Text;
         FieldName: Text;
         FilterValue: Text;
         Definition: Text;
+        FieldNameTokenType: Text;
+        FilterValueTokenType: Text;
     begin
         Advance(); // Skip 'filter'
 
@@ -4140,28 +4405,58 @@ codeunit 50001 "Program Executor"
             exit(false);
         end;
 
+        // First token is the filter identifier/name (optional, can be different from field name)
         if GetCurrentTokenType() <> 'IDENTIFIER' then begin
-            SetError('Expected filter field name');
+            SetError('Expected filter identifier');
             exit(false);
         end;
-        FieldName := GetCurrentToken();
+        FilterName := GetCurrentToken();
         Advance();
 
         if not ConsumeToken(';') then begin
-            SetError('Expected ; after filter field ' + FieldName);
+            SetError('Expected ; after filter identifier ' + FilterName);
             exit(false);
         end;
 
-        if GetCurrentToken() in ['(', ')'] then begin
-            SetError('Expected filter value for field ' + FieldName);
+        // After semicolon is the actual field name (may be quoted) or filter value
+        // In AL query syntax: filter(FilterName; "Field Name") or filter(FilterName; "Field Name"; 'Value')
+        if (GetCurrentTokenType() = 'IDENTIFIER') or (GetCurrentTokenType() = 'STRING') then begin
+            FieldName := GetCurrentToken();
+            FieldNameTokenType := GetCurrentTokenType();
+            // Strip quotes if field name is a string token (double-quoted field names are already IDENTIFIER)
+            if FieldNameTokenType = 'STRING' then begin
+                // Remove surrounding quotes from string token
+                if (StrLen(FieldName) >= 2) and (FieldName[1] = '''') and (FieldName[StrLen(FieldName)] = '''') then
+                    FieldName := CopyStr(FieldName, 2, StrLen(FieldName) - 2);
+            end;
+            Advance();
+        end else begin
+            SetError('Expected field name or filter value after semicolon');
             exit(false);
         end;
 
-        FilterValue := GetCurrentToken();
-        Advance();
+        // Check if there's a filter value (third parameter)
+        if GetCurrentToken() = ';' then begin
+            Advance(); // Skip second semicolon
+            if GetCurrentToken() in ['(', ')'] then begin
+                SetError('Expected filter value after second semicolon');
+                exit(false);
+            end;
+            FilterValue := GetCurrentToken();
+            FilterValueTokenType := GetCurrentTokenType();
+            // Strip quotes from filter value if it's a string token
+            if FilterValueTokenType = 'STRING' then begin
+                if (StrLen(FilterValue) >= 2) and (FilterValue[1] = '''') and (FilterValue[StrLen(FilterValue)] = '''') then
+                    FilterValue := CopyStr(FilterValue, 2, StrLen(FilterValue) - 2);
+            end;
+            Advance();
+        end else begin
+            // No explicit filter value - use empty string (filter is defined but not set)
+            FilterValue := '';
+        end;
 
         if not ConsumeToken(')') then begin
-            SetError('Expected ) after filter definition for field ' + FieldName);
+            SetError('Expected ) after filter definition');
             exit(false);
         end;
 
@@ -4170,9 +4465,57 @@ codeunit 50001 "Program Executor"
                 exit(false);
         end;
 
+        // Store as FieldName=FilterValue where FieldName is the actual field name (after semicolon)
         Definition := FieldName + '=' + FilterValue;
         FilterDefinitions.Add(Definition);
         exit(true);
+    end;
+
+    local procedure CollectParenthesizedExpression(var Expression: Text): Boolean
+    var
+        TokenValue: Text;
+        TokenType: Text;
+    begin
+        Expression := '';
+
+        while CurrentTokenIndex <= TokenList.Count do begin
+            if GetCurrentToken() = ')' then
+                exit(true);
+
+            TokenValue := GetCurrentToken();
+            TokenType := GetCurrentTokenType();
+
+            if TokenType = 'STRING' then
+                TokenValue := '''' + TokenValue + '''';
+
+            Expression += TokenValue;
+            Advance();
+        end;
+
+        exit(false);
+    end;
+
+    local procedure NormalizeConstExpression(Expression: Text): Text
+    var
+        IntValue: Integer;
+        DecValue: Decimal;
+    begin
+        if Evaluate(IntValue, Expression) then
+            exit(Expression);
+
+        if Evaluate(DecValue, Expression) then
+            exit(Expression);
+
+        if LowerCase(Expression) in ['true', 'false'] then
+            exit(LowerCase(Expression));
+
+        if Expression = '' then
+            exit(Expression);
+
+        if (StrLen(Expression) >= 2) and (Expression[1] = '''') and (Expression[StrLen(Expression)] = '''') then
+            exit(Expression);
+
+        exit('''' + Expression + '''');
     end;
 
     local procedure SkipCurlyBlock(): Boolean
@@ -4261,6 +4604,9 @@ codeunit 50001 "Program Executor"
         DataItemFilters: List of [Text];
         DataItemParents: List of [Text];
         DataItemLinks: List of [Text];
+        DataItemTableFilters: List of [Text];
+        DataItemColumnFilters: List of [Text];
+        DataItemColumnMethods: List of [Text];
         RootRecRef: RecordRef;
         i: Integer;
     begin
@@ -4300,24 +4646,42 @@ codeunit 50001 "Program Executor"
                 DataItemLinks.Add(Parts.Get(6))
             else
                 DataItemLinks.Add('');
+
+            if Parts.Count >= 7 then
+                DataItemTableFilters.Add(Parts.Get(7))
+            else
+                DataItemTableFilters.Add('');
+
+            if Parts.Count >= 8 then
+                DataItemColumnFilters.Add(Parts.Get(8))
+            else
+                DataItemColumnFilters.Add('');
+
+            if Parts.Count >= 9 then
+                DataItemColumnMethods.Add(Parts.Get(9))
+            else
+                DataItemColumnMethods.Add('');
         end;
 
         for i := 1 to DataItemNames.Count do begin
             if DataItemParents.Get(i) = '' then
-                if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, i, RootRecRef, 0) then
+                if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, DataItemTableFilters, DataItemColumnFilters, DataItemColumnMethods, i, RootRecRef, 0) then
                     exit(false);
         end;
 
         exit(true);
     end;
 
-    local procedure ExecuteQueryDataItemRecursive(QueryName: Text; var DataItemNames: List of [Text]; var DataItemTables: List of [Text]; var DataItemColumns: List of [Text]; var DataItemFilters: List of [Text]; var DataItemParents: List of [Text]; var DataItemLinks: List of [Text]; DataItemIndex: Integer; var ParentRecRef: RecordRef; Level: Integer): Boolean
+    local procedure ExecuteQueryDataItemRecursive(QueryName: Text; var DataItemNames: List of [Text]; var DataItemTables: List of [Text]; var DataItemColumns: List of [Text]; var DataItemFilters: List of [Text]; var DataItemParents: List of [Text]; var DataItemLinks: List of [Text]; var DataItemTableFilters: List of [Text]; var DataItemColumnFilters: List of [Text]; var DataItemColumnMethods: List of [Text]; DataItemIndex: Integer; var ParentRecRef: RecordRef; Level: Integer): Boolean
     var
         DataItemName: Text;
         TableName: Text;
         ColumnSpec: Text;
         FilterSpec: Text;
         LinkSpec: Text;
+        TableFilterSpec: Text;
+        ColumnFilterSpec: Text;
+        ColumnMethodSpec: Text;
         TableId: Integer;
         RecRef: RecordRef;
         ColumnEntries: List of [Text];
@@ -4326,10 +4690,17 @@ codeunit 50001 "Program Executor"
         ColumnNames: List of [Text];
         ColumnFields: List of [Text];
         ColumnValues: List of [Text];
+        ColumnFilterEntries: List of [Text];
+        ColumnMethodEntries: List of [Text];
+        ColumnFilterExpr: Text;
         FilterEntries: List of [Text];
         FilterEntry: Text;
         FilterField: Text;
         FilterValue: Text;
+        TableFilterEntries: List of [Text];
+        TableFilterEntry: Text;
+        TableFilterField: Text;
+        TableFilterExpression: Text;
         LinkEntries: List of [Text];
         LinkEntry: Text;
         LinkField: Text;
@@ -4352,6 +4723,9 @@ codeunit 50001 "Program Executor"
         ColumnSpec := DataItemColumns.Get(DataItemIndex);
         FilterSpec := DataItemFilters.Get(DataItemIndex);
         LinkSpec := DataItemLinks.Get(DataItemIndex);
+        TableFilterSpec := DataItemTableFilters.Get(DataItemIndex);
+        ColumnFilterSpec := DataItemColumnFilters.Get(DataItemIndex);
+        ColumnMethodSpec := DataItemColumnMethods.Get(DataItemIndex);
 
         TableId := GetTableIdByName(TableName);
         if TableId = 0 then begin
@@ -4362,6 +4736,33 @@ codeunit 50001 "Program Executor"
         RecRef.Open(TableId);
         RecRef.Reset();
 
+        // Apply DataItemTableFilter first (table-level filters)
+        if TableFilterSpec <> '' then begin
+            TableFilterEntries := TableFilterSpec.Split(',');
+            for i := 1 to TableFilterEntries.Count do begin
+                TableFilterEntry := TableFilterEntries.Get(i);
+                if TableFilterEntry = '' then
+                    continue;
+
+                // Split on first '=' only - field name is before, expression is after
+                // Format: FieldName=OperatorValue
+                if StrPos(TableFilterEntry, '=') > 0 then begin
+                    TableFilterField := CopyStr(TableFilterEntry, 1, StrPos(TableFilterEntry, '=') - 1);
+                    TableFilterExpression := CopyStr(TableFilterEntry, StrPos(TableFilterEntry, '=') + 1);
+                    // TableFilterExpression format: OperatorValue (e.g., "<>''", "=true", "=1")
+                    if TableFilterExpression <> '' then begin
+                        if CopyStr(TableFilterExpression, 1, 1) = '=' then
+                            TableFilterExpression := CopyStr(TableFilterExpression, 2);
+                        if not SetRecordFilter(RecRef, TableFilterField, TableFilterExpression) then begin
+                            RecRef.Close();
+                            exit(false);
+                        end;
+                    end;
+                end;
+            end;
+        end;
+
+        // Apply regular filters
         if FilterSpec <> '' then begin
             FilterEntries := FilterSpec.Split(',');
             for i := 1 to FilterEntries.Count do begin
@@ -4371,9 +4772,12 @@ codeunit 50001 "Program Executor"
 
                 FilterField := FilterEntry.Split('=').Get(1);
                 FilterValue := FilterEntry.Split('=').Get(2);
-                if not SetRecordFilter(RecRef, FilterField, FilterValue) then begin
-                    RecRef.Close();
-                    exit(false);
+                // Skip filters with empty values (filter is defined but not set)
+                if FilterValue <> '' then begin
+                    if not SetRecordFilter(RecRef, FilterField, FilterValue) then begin
+                        RecRef.Close();
+                        exit(false);
+                    end;
                 end;
             end;
         end;
@@ -4429,6 +4833,27 @@ codeunit 50001 "Program Executor"
                 ColumnFields.Add(ColumnParts.Get(1));
         end;
 
+        if ColumnFilterSpec <> '' then begin
+            ColumnFilterEntries := ColumnFilterSpec.Split(',');
+            for i := 1 to ColumnFilterEntries.Count do begin
+                if i > ColumnFields.Count then
+                    break;
+
+                ColumnFilterExpr := ColumnFilterEntries.Get(i);
+                if ColumnFilterExpr = '' then
+                    continue;
+
+                FilterField := ColumnFields.Get(i);
+                if FilterField = '' then
+                    continue;
+
+                if not SetRecordFilter(RecRef, FilterField, ColumnFilterExpr) then begin
+                    RecRef.Close();
+                    exit(false);
+                end;
+            end;
+        end;
+
         LF := TypeHelper.LFSeparator();
         Indent := PadStr('', Level * 2, ' ');
 
@@ -4463,7 +4888,7 @@ codeunit 50001 "Program Executor"
 
                 for ChildIndex := 1 to DataItemNames.Count do begin
                     if LowerCase(DataItemParents.Get(ChildIndex)) = LowerCase(DataItemName) then
-                        if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, ChildIndex, RecRef, Level + 1) then begin
+                        if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, DataItemTableFilters, DataItemColumnFilters, DataItemColumnMethods, ChildIndex, RecRef, Level + 1) then begin
                             RecRef.Close();
                             exit(false);
                         end;
@@ -4485,7 +4910,7 @@ codeunit 50001 "Program Executor"
         ResultText := '';
 
         for i := 1 to Values.Count do begin
-            if ResultText <> '' then
+            if i > 1 then
                 ResultText += Separator;
             ResultText += Values.Get(i);
         end;

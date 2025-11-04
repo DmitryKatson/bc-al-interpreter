@@ -1934,10 +1934,15 @@ codeunit 80100 "Program Executor Tests"
         // [Given] Query definition over Integer virtual table
         Code := 'query IntegerQuery' + LF +
                 '{' + LF +
-                '  dataitem(NumberLoop; Integer)' + LF +
+                '  elements' + LF +
                 '  {' + LF +
-                '    column(Value; Number)' + LF +
-                '    filter(Number; ''1..3'')' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1..3);' + LF +
+                '      column(Value; Number)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
                 '  }' + LF +
                 '}' + LF +
                 LF +
@@ -1964,15 +1969,22 @@ codeunit 80100 "Program Executor Tests"
         // [Given] Query with two integer dataitems
         Code := 'query MultiQuery' + LF +
                 '{' + LF +
-                '  dataitem(FirstLoop; Integer)' + LF +
+                '  elements' + LF +
                 '  {' + LF +
-                '    column(Value; Number)' + LF +
-                '    filter(Number; ''1..2'')' + LF +
-                '  }' + LF +
-                '  dataitem(SecondLoop; Integer)' + LF +
-                '  {' + LF +
-                '    column(Value; Number)' + LF +
-                '    filter(Number; ''3..4'')' + LF +
+                '    dataitem(FirstLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1..2);' + LF +
+                '      column(Value; Number)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '    dataitem(SecondLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(3..4);' + LF +
+                '      column(Value; Number)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
                 '  }' + LF +
                 '}' + LF +
                 LF +
@@ -2041,19 +2053,31 @@ codeunit 80100 "Program Executor Tests"
                 LF +
                 'query SalesOrderLines' + LF +
                 '{' + LF +
-                '  dataitem(SalesHeader; "Sales Header")' + LF +
+                '  elements' + LF +
                 '  {' + LF +
-                '    filter("Document Type"; ''Order'')' + LF +
-                '    filter("No."; ''TQRY0001'')' + LF +
-                '    column(OrderNo; "No.")' + LF +
-                '    column(CustomerNo; "Sell-to Customer No.")' + LF +
-                '    dataitem(SalesLines; "Sales Line")' + LF +
+                '    dataitem(SalesHeader; "Sales Header")' + LF +
                 '    {' + LF +
-                '      DataItemLink = "Document No." = SalesHeader."No.";' + LF +
-                '      filter("Document Type"; ''Order'')' + LF +
-                '      column(LineNo; "Line No.")' + LF +
-                '      column(ItemNo; "No.")' + LF +
-                '      column(Quantity; Quantity)' + LF +
+                '      DataItemTableFilter = "Document Type" = const(Order), "No." = const(TQRY0001);' + LF +
+                '      column(OrderNo; "No.")' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '      column(CustomerNo; "Sell-to Customer No.")' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '      dataitem(SalesLines; "Sales Line")' + LF +
+                '      {' + LF +
+                '        DataItemLink = "Document No." = SalesHeader."No.";' + LF +
+                '        DataItemTableFilter = "Document Type" = const(Order);' + LF +
+                '        column(LineNo; "Line No.")' + LF +
+                '        {' + LF +
+                '        }' + LF +
+                '        column(ItemNo; "No.")' + LF +
+                '        {' + LF +
+                '        }' + LF +
+                '        column(Quantity; Quantity)' + LF +
+                '        {' + LF +
+                '        }' + LF +
+                '      }' + LF +
                 '    }' + LF +
                 '  }' + LF +
                 '}' + LF +
@@ -2092,17 +2116,27 @@ codeunit 80100 "Program Executor Tests"
         // [Given] Two query declarations with the same name
         Code := 'query DemoQuery' + LF +
                 '{' + LF +
-                '  dataitem(CustomerLoop; Customer)' + LF +
+                '  elements' + LF +
                 '  {' + LF +
-                '    column(NameColumn; Name)' + LF +
+                '    dataitem(CustomerLoop; Customer)' + LF +
+                '    {' + LF +
+                '      column(NameColumn; Name)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
                 '  }' + LF +
                 '}' + LF +
                 LF +
                 'query DemoQuery' + LF +
                 '{' + LF +
-                '  dataitem(CustomerLoop; Customer)' + LF +
+                '  elements' + LF +
                 '  {' + LF +
-                '    column(NameColumn; Name)' + LF +
+                '    dataitem(CustomerLoop; Customer)' + LF +
+                '    {' + LF +
+                '      column(NameColumn; Name)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
                 '  }' + LF +
                 '};';
 
@@ -2163,18 +2197,28 @@ codeunit 80100 "Program Executor Tests"
                 LF +
                 'query SalesHeaderWithLines' + LF +
                 '{' + LF +
-                '  dataitem(SalesHeader; "Sales Header")' + LF +
+                '  elements' + LF +
                 '  {' + LF +
-                '    filter("Document Type"; ''Order'')' + LF +
-                '    filter("No."; ''TQRY0002'')' + LF +
-                '    column(OrderNo; "No.")' + LF +
-                '    column(CustomerNo; "Sell-to Customer No.")' + LF +
-                '    dataitem(SalesLines; "Sales Line")' + LF +
+                '    dataitem(SalesHeader; "Sales Header")' + LF +
                 '    {' + LF +
-                '      DataItemLink = "Document No." = SalesHeader."No.";' + LF +
-                '      filter("Document Type"; ''Order'')' + LF +
-                '      column(LineNo; "Line No.")' + LF +
-                '      column(DocumentNo; "Document No.")' + LF +
+                '      DataItemTableFilter = "Document Type" = const(Order), "No." = const(TQRY0002);' + LF +
+                '      column(OrderNo; "No.")' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '      column(CustomerNo; "Sell-to Customer No.")' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '      dataitem(SalesLines; "Sales Line")' + LF +
+                '      {' + LF +
+                '        DataItemLink = "Document No." = SalesHeader."No.";' + LF +
+                '        DataItemTableFilter = "Document Type" = const(Order);' + LF +
+                '        column(LineNo; "Line No.")' + LF +
+                '        {' + LF +
+                '        }' + LF +
+                '        column(DocumentNo; "Document No.")' + LF +
+                '        {' + LF +
+                '        }' + LF +
+                '      }' + LF +
                 '    }' + LF +
                 '  }' + LF +
                 '}' + LF +
@@ -2192,6 +2236,116 @@ codeunit 80100 "Program Executor Tests"
         Assert.IsTrue(StrPos(ExecutionOutput, 'LineNo | DocumentNo') > 0, 'Lines dataitem columns should appear');
         Assert.IsTrue(StrPos(ExecutionOutput, 'TQRY0002') > 0, 'Header output should include order number');
         Assert.IsTrue(StrPos(ExecutionOutput, '20000') > 0, 'Line output should include second line number');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryWithColumnFilterRange()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Query with ColumnFilter limiting Integer range
+        Code := 'query IntegerColumnFilter' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      column(Value; Number)' + LF +
+                '      {' + LF +
+                '        ColumnFilter = Value = filter(1..5);' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerColumnFilter'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Query should execute without errors and respect the column filter
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Query with ColumnFilter should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Value') > 0, 'Column header should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '5' + LF) > 0, 'Column filter should include upper bound');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, LF + '6' + LF), 'Column filter should exclude values outside range');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryWithColumnFilterConst()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Query with ColumnFilter using const syntax
+        Code := 'query GLAccountPostingFilter' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(GLAccount; "G/L Account")' + LF +
+                '    {' + LF +
+                '      column(NoColumn; "No.")' + LF +
+                '      {' + LF +
+                '        ColumnFilter = NoColumn = filter(<> '''');' + LF +
+                '      }' + LF +
+                '      column(AccountType; "Account Type")' + LF +
+                '      {' + LF +
+                '        ColumnFilter = AccountType = const(Posting);' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''GLAccountPostingFilter'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Query should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Query with const ColumnFilter should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'NoColumn | AccountType') > 0, 'Column headers should be printed');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryWithDataItemTableFilterRange()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Query with DataItemTableFilter limiting Integer range
+        Code := 'query IntegerRangeFilter' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1..3);' + LF +
+                '      column(Value; Number)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerRangeFilter'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Query should execute without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Query with DataItemTableFilter should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Value') > 0, 'Column header should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '3' + LF) > 0, 'Table filter should include upper bound');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, LF + '4' + LF), 'Table filter should exclude values outside range');
         Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
     end;
 }
