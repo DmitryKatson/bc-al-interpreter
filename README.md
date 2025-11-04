@@ -1,6 +1,6 @@
 # Interactive AL Code Runner
 
-This repository hosts a Business Central extension that interprets AL snippets at runtime—ideal for troubleshooting, demos, and exploratory data work without publishing new codeunits. Development and CI are orchestrated through AL-Go for GitHub.
+This repository hosts a Business Central extension that interprets AL snippets at runtime—ideal for troubleshooting, demos, and exploratory data work without publishing new codeunits. The interpreter now also understands inline query objects (`query MyQuery { ... }`) and lets you stream their results to the console via `ExecuteQuery(Name)`. Development and CI are orchestrated through AL-Go for GitHub.
 
 ## Where to Start
 

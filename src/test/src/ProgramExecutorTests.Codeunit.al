@@ -1922,5 +1922,277 @@ codeunit 80100 "Program Executor Tests"
 
         Assert.IsTrue(StrPos(ExecutionOutput, 'Error: StrSubstNo requires at least 1 argument') > 0, 'StrSubstNo should validate argument count');
     end;
+
+    [Test]
+    procedure TestExecuteQueryOutputsRows()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Query definition over Integer virtual table
+        Code := 'query IntegerQuery' + LF +
+                '{' + LF +
+                '  dataitem(NumberLoop; Integer)' + LF +
+                '  {' + LF +
+                '    column(Value; Number)' + LF +
+                '    filter(Number; ''1..3'')' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerQuery'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should include header and filtered values
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Query execution should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Value') > 0, 'Column header should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '2' + LF) > 0, 'Query rows should be listed');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryMultipleDataItems()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Query with two integer dataitems
+        Code := 'query MultiQuery' + LF +
+                '{' + LF +
+                '  dataitem(FirstLoop; Integer)' + LF +
+                '  {' + LF +
+                '    column(Value; Number)' + LF +
+                '    filter(Number; ''1..2'')' + LF +
+                '  }' + LF +
+                '  dataitem(SecondLoop; Integer)' + LF +
+                '  {' + LF +
+                '    column(Value; Number)' + LF +
+                '    filter(Number; ''3..4'')' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''MultiQuery'');';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Output should include both dataitems without errors
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Query execution should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Value') > 0, 'Column header should be printed for each dataitem');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '2' + LF) > 0, 'First dataitem rows should include 2');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '4' + LF) > 0, 'Second dataitem rows should include 4');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQuerySalesOrderLineCount()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Sales order setup, query, and line count message
+        Code := 'SalesHeader: Record "Sales Header";' + LF +
+                'SalesLine: Record "Sales Line";' + LF +
+                'OrderNo: Code[20];' + LF +
+                'LineNo: Integer;' + LF +
+                'LineCount: Integer;' + LF +
+                LF +
+                'OrderNo := ''TQRY0001'';' + LF +
+                LF +
+                '// Clean up any existing order with same number' + LF +
+                'SalesLine.Reset();' + LF +
+                'SalesLine.SetRange("Document Type", SalesLine."Document Type"::Order);' + LF +
+                'SalesLine.SetRange("Document No.", OrderNo);' + LF +
+                'if SalesLine.FindSet() then' + LF +
+                '  repeat' + LF +
+                '    SalesLine.Delete(true);' + LF +
+                '  until SalesLine.Next() = 0;' + LF +
+                'SalesHeader.Reset();' + LF +
+                'SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Order);' + LF +
+                'SalesHeader.SetRange("No.", OrderNo);' + LF +
+                'if SalesHeader.FindFirst() then' + LF +
+                '  SalesHeader.Delete(true);' + LF +
+                LF +
+                '// Create Sales Header' + LF +
+                'SalesHeader.Init();' + LF +
+                'SalesHeader."Document Type" := SalesHeader."Document Type"::Order;' + LF +
+                'SalesHeader."No." := OrderNo;' + LF +
+                'SalesHeader.Validate("Sell-to Customer No.", ''10000'');' + LF +
+                'SalesHeader.Insert(true);' + LF +
+                LF +
+                '// Create Sales Lines' + LF +
+                'for LineNo := 1 to 3 do begin' + LF +
+                '  SalesLine.Init();' + LF +
+                '  SalesLine."Document Type" := SalesLine."Document Type"::Order;' + LF +
+                '  SalesLine."Document No." := OrderNo;' + LF +
+                '  SalesLine."Line No." := LineNo * 10000;' + LF +
+                '  SalesLine.Type := SalesLine.Type::Item;' + LF +
+                '  SalesLine.Validate("No.", ''1896-S'');' + LF +
+                '  SalesLine.Validate(Quantity, LineNo);' + LF +
+                '  SalesLine.Insert(true);' + LF +
+                'end;' + LF +
+                LF +
+                'query SalesOrderLines' + LF +
+                '{' + LF +
+                '  dataitem(SalesHeader; "Sales Header")' + LF +
+                '  {' + LF +
+                '    filter("Document Type"; ''Order'')' + LF +
+                '    filter("No."; ''TQRY0001'')' + LF +
+                '    column(OrderNo; "No.")' + LF +
+                '    column(CustomerNo; "Sell-to Customer No.")' + LF +
+                '    dataitem(SalesLines; "Sales Line")' + LF +
+                '    {' + LF +
+                '      DataItemLink = "Document No." = SalesHeader."No.";' + LF +
+                '      filter("Document Type"; ''Order'')' + LF +
+                '      column(LineNo; "Line No.")' + LF +
+                '      column(ItemNo; "No.")' + LF +
+                '      column(Quantity; Quantity)' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''SalesOrderLines'');' + LF +
+                LF +
+                '// Calculate line count' + LF +
+                'SalesLine.Reset();' + LF +
+                'SalesLine.SetRange("Document Type", SalesLine."Document Type"::Order);' + LF +
+                'SalesLine.SetRange("Document No.", OrderNo);' + LF +
+                'LineCount := SalesLine.Count();' + LF +
+                'Message( StrSubstNo(''Line count for %1: %2'', OrderNo, Format(LineCount)) );' + LF +
+                LF +
+                '// Clean up test data' + LF +
+                'SalesLine.DeleteAll(true);' + LF +
+                'SalesHeader.Delete(true);';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Sales order query should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'OrderNo | CustomerNo') > 0, 'Sales header columns should be listed');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'LineNo | ItemNo | Quantity') > 0, 'Sales line columns should be listed');
+        Assert.IsTrue(StrPos(ExecutionOutput, '20000 |') > 0, 'Sales line entries should be present in output');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Line count for TQRY0001: 3') > 0, 'Line count message should reflect three lines');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestDuplicateQueryDefinitionFails()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        // [Given] Two query declarations with the same name
+        Code := 'query DemoQuery' + LF +
+                '{' + LF +
+                '  dataitem(CustomerLoop; Customer)' + LF +
+                '  {' + LF +
+                '    column(NameColumn; Name)' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'query DemoQuery' + LF +
+                '{' + LF +
+                '  dataitem(CustomerLoop; Customer)' + LF +
+                '  {' + LF +
+                '    column(NameColumn; Name)' + LF +
+                '  }' + LF +
+                '};';
+
+        // [When] Execute the program
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        // [Then] Duplicate definition should be reported
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Query already defined: DemoQuery') > 0, 'Duplicate query definitions must raise an error');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryNestedDataItems()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'SalesHeader: Record "Sales Header";' + LF +
+                'SalesLine: Record "Sales Line";' + LF +
+                'OrderNo: Code[20];' + LF +
+                'LineNo: Integer;' + LF +
+                LF +
+                'OrderNo := ''TQRY0002'';' + LF +
+                LF +
+                '// Clean existing order' + LF +
+                'SalesLine.Reset();' + LF +
+                'SalesLine.SetRange("Document Type", SalesLine."Document Type"::Order);' + LF +
+                'SalesLine.SetRange("Document No.", OrderNo);' + LF +
+                'if SalesLine.FindSet() then' + LF +
+                '  repeat' + LF +
+                '    SalesLine.Delete(true);' + LF +
+                '  until SalesLine.Next() = 0;' + LF +
+                'SalesHeader.Reset();' + LF +
+                'SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Order);' + LF +
+                'SalesHeader.SetRange("No.", OrderNo);' + LF +
+                'if SalesHeader.FindFirst() then' + LF +
+                '  SalesHeader.Delete(true);' + LF +
+                LF +
+                '// Create new order' + LF +
+                'SalesHeader.Init();' + LF +
+                'SalesHeader."Document Type" := SalesHeader."Document Type"::Order;' + LF +
+                'SalesHeader."No." := OrderNo;' + LF +
+                'SalesHeader.Validate("Sell-to Customer No.", ''10000'');' + LF +
+                'SalesHeader.Insert(true);' + LF +
+                LF +
+                '// Create order lines' + LF +
+                'for LineNo := 1 to 2 do begin' + LF +
+                '  SalesLine.Init();' + LF +
+                '  SalesLine."Document Type" := SalesLine."Document Type"::Order;' + LF +
+                '  SalesLine."Document No." := OrderNo;' + LF +
+                '  SalesLine."Line No." := LineNo * 10000;' + LF +
+                '  SalesLine.Type := SalesLine.Type::Item;' + LF +
+                '  SalesLine.Validate("No.", ''1896-S'');' + LF +
+                '  SalesLine.Validate(Quantity, LineNo);' + LF +
+                '  SalesLine.Insert(true);' + LF +
+                'end;' + LF +
+                LF +
+                'query SalesHeaderWithLines' + LF +
+                '{' + LF +
+                '  dataitem(SalesHeader; "Sales Header")' + LF +
+                '  {' + LF +
+                '    filter("Document Type"; ''Order'')' + LF +
+                '    filter("No."; ''TQRY0002'')' + LF +
+                '    column(OrderNo; "No.")' + LF +
+                '    column(CustomerNo; "Sell-to Customer No.")' + LF +
+                '    dataitem(SalesLines; "Sales Line")' + LF +
+                '    {' + LF +
+                '      DataItemLink = "Document No." = SalesHeader."No.";' + LF +
+                '      filter("Document Type"; ''Order'')' + LF +
+                '      column(LineNo; "Line No.")' + LF +
+                '      column(DocumentNo; "Document No.")' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''SalesHeaderWithLines'');' + LF +
+                LF +
+                '// Clean up test records' + LF +
+                'SalesLine.DeleteAll(true);' + LF +
+                'SalesHeader.Delete(true);';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Nested query should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'OrderNo | CustomerNo') > 0, 'Header dataitem columns should appear');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'LineNo | DocumentNo') > 0, 'Lines dataitem columns should appear');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'TQRY0002') > 0, 'Header output should include order number');
+        Assert.IsTrue(StrPos(ExecutionOutput, '20000') > 0, 'Line output should include second line number');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
 }
 

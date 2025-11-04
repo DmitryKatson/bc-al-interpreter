@@ -26,7 +26,19 @@ codeunit 50000 "Interactive Code Runner Impl"
                       '  until Cust.Next() = 0;' + LF +
                       'end;' + LF +
                       LF +
-                      'Message(''Total customers: '' + Format(Counter));';
+                      'Message(''Total customers: '' + Format(Counter));' + LF +
+                      LF +
+                      '// Query example' + LF +
+                      'query CustomerList' + LF +
+                      '{' + LF +
+                      '  dataitem(Customer; Customer)' + LF +
+                      '  {' + LF +
+                      '    column(NoColumn; ""No."")' + LF +
+                      '    column(NameColumn; Name)' + LF +
+                      '  }' + LF +
+                      '}' + LF +
+                      LF +
+                      'ExecuteQuery(''CustomerList'');';
 
         exit(SampleCode);
     end;
@@ -76,6 +88,10 @@ codeunit 50000 "Interactive Code Runner Impl"
                     'Customer.CalcFields(Balance); Customer.CalcSums(Amount);' + LF +
                     'Customer.IsEmpty(); Customer.Count();' + LF +
                     'Customer.Insert(true); Customer.Modify(true); Customer.Delete(true);' + LF + LF +
+
+                    '--- Queries ---' + LF +
+                    'query CustomerList { dataitem(Customer; Customer) { column(NoColumn; ""No.""); column(NameColumn; Name); } }' + LF +
+                    'ExecuteQuery(''CustomerList''); // Runs the defined query and prints rows' + LF + LF +
 
                     '--- String Functions ---' + LF +
                     'StrLen(Text), CopyStr(Text, Start, Length), UpperCase(Text), LowerCase(Text)' + LF +

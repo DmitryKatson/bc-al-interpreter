@@ -1,0 +1,71 @@
+// DEMO 9: Queries and Dataset Exploration
+// Define a query object at runtime and render the result set in the console
+
+query CustomerBalances
+{
+  dataitem(Customer; Customer)
+  {
+    filter("Blocked"; '<>All');
+    column(NoColumn; "No.")
+    column(NameColumn; Name)
+    column(BalanceLCY;"Balance (LCY)")
+  }
+}
+
+begin
+  Message('=== QUERY DEMO ===');
+  ExecuteQuery('CustomerBalances');
+end;
+
+// Nested dataitem example
+
+query SalesOrdersWithLines
+{
+  dataitem(SalesHeader; "Sales Header")
+  {
+    filter("Document Type"; 'Order')
+    filter("Sell-to Customer No."; '10000')
+    column(OrderNo; "No.")
+    column(CustomerNo; "Sell-to Customer No.")
+
+    dataitem(SalesLines; "Sales Line")
+    {
+      DataItemLink = "Document No." = SalesHeader."No.";
+      filter("Document Type"; 'Order')
+      column(LineNo; "Line No.")
+      column(ItemNo; "No.")
+      column(Quantity; Quantity)
+    }
+  }
+}
+
+begin
+  Message('=== SALES ORDERS WITH LINES ===');
+  ExecuteQuery('SalesOrdersWithLines');
+end;
+
+// Bank account ledger linked to bank account
+
+query BankLedgerWithAccount
+{
+  dataitem(BankLedger; "Bank Account Ledger Entry")
+  {
+    column(EntryNo; "Entry No.")
+    column(AccountNo; "Bank Account No.")
+    column(PostingDate; "Posting Date")
+    column(AmountLCY; "Amount (LCY)")
+
+    dataitem(BankAccount; "Bank Account")
+    {
+      DataItemLink = "No." = BankLedger."Bank Account No.";
+      column(AccountName; Name)
+      column(Currency; "Currency Code")
+    }
+  }
+}
+
+begin
+  Message('=== BANK LEDGER WITH ACCOUNT DETAILS ===');
+  ExecuteQuery('BankLedgerWithAccount');
+end;
+

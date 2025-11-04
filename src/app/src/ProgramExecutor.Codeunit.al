@@ -23,6 +23,8 @@ codeunit 50001 "Program Executor"
         ProcedureParamSignatures: List of [Text];
         ProcedureReturnTypes: List of [Text];
         ProcedureLocalVarSignatures: List of [Text];
+        QueryNames: List of [Text];
+        QueryDefinitions: List of [Text];
         CurrentExecutionEndIndex: Integer;
         ProcedureExecutionDepth: Integer;
         ProcedureExitRequested: Boolean;
@@ -90,6 +92,8 @@ codeunit 50001 "Program Executor"
         Clear(ProcedureParamSignatures);
         Clear(ProcedureReturnTypes);
         Clear(ProcedureLocalVarSignatures);
+        Clear(QueryNames);
+        Clear(QueryDefinitions);
         CurrentTokenIndex := 0;
         ErrorMessage := '';
         ExecutionOutput := '';
@@ -300,7 +304,8 @@ codeunit 50001 "Program Executor"
           'until', 'while', 'do', 'for', 'to', 'downto',
           'record', 'integer', 'text', 'boolean', 'date', 'datetime',
           'decimal', 'code', 'and', 'or', 'not', 'div', 'mod',
-          'true', 'false', 'case', 'of', 'exit', 'procedure':
+          'true', 'false', 'case', 'of', 'exit', 'procedure',
+          'query', 'dataitem', 'column', 'filter', 'elements', 'dataitemlink':
                 exit('KEYWORD');
         end;
 
@@ -542,6 +547,8 @@ codeunit 50001 "Program Executor"
                     exit(ParseExitStatement());
                 'procedure':
                     exit(ParseProcedureDeclaration());
+                'query':
+                    exit(ParseQueryDeclaration());
                 'var':
                     begin
                         Advance();
@@ -1745,6 +1752,17 @@ codeunit 50001 "Program Executor"
                     Result := 'true';
                     exit(true);
                 end;
+            'executequery', 'runquery':
+                begin
+                    if Args.Count < 1 then begin
+                        SetError('ExecuteQuery requires a query name');
+                        exit(false);
+                    end;
+                    if not ExecuteStoredQuery(Args.Get(1)) then
+                        exit(false);
+                    Result := 'true';
+                    exit(true);
+                end;
             'error':
                 begin
                     if Args.Count > 0 then begin
@@ -2465,8 +2483,63 @@ codeunit 50001 "Program Executor"
         end;
 
         FieldRef := RecRef.Field(FieldNo);
+
+        if FieldRef.Type = FieldRef.Type::Option then begin
+            if not SetOptionFieldValue(FieldRef, FieldName, Value) then
+                exit(false);
+            exit(true);
+        end;
+
         FieldRef.Value := Value;
         exit(true);
+    end;
+
+    local procedure SetOptionFieldValue(var FieldRef: FieldRef; FieldName: Text; OptionValue: Text): Boolean
+    var
+        OptionString: Text;
+        OptionEntries: List of [Text];
+        OptionEntry: Text;
+        NormalizedOption: Text;
+        NormalizedTarget: Text;
+        CleanValue: Text;
+        Index: Integer;
+        EnumValue: Integer;
+        DelimitPos: Integer;
+    begin
+        CleanValue := OptionValue;
+
+        if Evaluate(EnumValue, CleanValue) then begin
+            FieldRef.Value := EnumValue;
+            exit(true);
+        end;
+
+        DelimitPos := StrPos(CleanValue, '::');
+        if DelimitPos > 0 then
+            CleanValue := CopyStr(CleanValue, DelimitPos + 2);
+
+        CleanValue := DelChr(CleanValue, '=', '''" ');
+        NormalizedTarget := LowerCase(DelChr(DelChr(CleanValue, '<', ' '), '>', ' '));
+
+        OptionString := FieldRef.OptionMembers();
+        OptionEntries := OptionString.Split(',');
+
+        for Index := 1 to OptionEntries.Count do begin
+            OptionEntry := OptionEntries.Get(Index);
+            NormalizedOption := LowerCase(DelChr(DelChr(DelChr(OptionEntry, '=', ' '), '<', ' '), '>', ' '));
+
+            if NormalizedOption = NormalizedTarget then begin
+                FieldRef.Value := Index - 1;
+                exit(true);
+            end;
+        end;
+
+        if NormalizedTarget = '' then begin
+            FieldRef.Value := 0;
+            exit(true);
+        end;
+
+        SetError('Option value not recognized for field ' + FieldName + ': ' + OptionValue);
+        exit(false);
     end;
 
     local procedure GetFieldNumber(RecRef: RecordRef; FieldName: Text): Integer
@@ -3698,4 +3771,734 @@ codeunit 50001 "Program Executor"
     begin
         exit((TokenType = 'IDENTIFIER') or (TokenType = 'KEYWORD'));
     end;
+
+    #region Query Support
+
+    local procedure ParseQueryDeclaration(): Boolean
+    var
+        QueryName: Text;
+        QueryDefinition: Text;
+    begin
+        Advance(); // Skip 'query'
+
+        if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+            SetError('Expected query name');
+            exit(false);
+        end;
+        QueryName := GetCurrentToken();
+        Advance();
+
+        if GetCurrentToken() = ';' then
+            Advance();
+
+        if not ConsumeToken('{') then begin
+            SetError('Expected { after query name ' + QueryName);
+            exit(false);
+        end;
+
+        if not ParseQueryBody(QueryDefinition) then
+            exit(false);
+
+        if not RegisterQuery(QueryName, QueryDefinition) then
+            exit(false);
+
+        ConsumeSemicolon();
+        exit(true);
+    end;
+
+    local procedure ParseQueryBody(var QueryDefinition: Text): Boolean
+    var
+        DataItemDefinitions: List of [Text];
+        TokenText: Text;
+        TypeHelper: Codeunit "Type Helper";
+    begin
+        Clear(DataItemDefinitions);
+
+        while CurrentTokenIndex <= TokenList.Count do begin
+            TokenText := LowerCase(GetCurrentToken());
+
+            if TokenText = 'elements' then begin
+                Advance();
+                if not ConsumeToken('{') then begin
+                    SetError('Expected { after elements keyword');
+                    exit(false);
+                end;
+
+                while CurrentTokenIndex <= TokenList.Count do begin
+                    TokenText := LowerCase(GetCurrentToken());
+                    if TokenText = 'dataitem' then begin
+                        if not ParseQueryDataItem('', DataItemDefinitions) then
+                            exit(false);
+                        continue;
+                    end;
+
+                    if GetCurrentToken() = ';' then begin
+                        Advance();
+                        continue;
+                    end;
+
+                    if GetCurrentToken() = '}' then begin
+                        Advance();
+                        break;
+                    end;
+
+                    // Skip unknown element statements
+                    Advance();
+                end;
+
+                continue;
+            end;
+
+            if TokenText = 'dataitem' then begin
+                if not ParseQueryDataItem('', DataItemDefinitions) then
+                    exit(false);
+                continue;
+            end;
+
+            if GetCurrentToken() = ';' then begin
+                Advance();
+                continue;
+            end;
+
+            if GetCurrentToken() = '}' then
+                break;
+
+            // Skip query properties (e.g., QueryType, DataAccessIntent, Caption, Namespace)
+            if PeekNextToken('=') then begin
+                Advance(); // Skip property name
+                Advance(); // Skip '='
+                while (CurrentTokenIndex <= TokenList.Count) and (GetCurrentToken() <> ';') do
+                    Advance();
+                ConsumeSemicolon();
+                continue;
+            end;
+
+            Advance();
+        end;
+
+        if not ConsumeToken('}') then begin
+            SetError('Expected } to close query definition');
+            exit(false);
+        end;
+
+        if DataItemDefinitions.Count = 0 then begin
+            SetError('Query requires at least one dataitem');
+            exit(false);
+        end;
+
+        QueryDefinition := JoinWithSeparator(DataItemDefinitions, TypeHelper.LFSeparator());
+        exit(true);
+    end;
+
+    local procedure ParseQueryDataItem(ParentName: Text; var DataItemDefinitions: List of [Text]): Boolean
+    var
+        DataItemName: Text;
+        TableName: Text;
+        ColumnDefinitions: List of [Text];
+        FilterDefinitions: List of [Text];
+        LinkDefinitions: List of [Text];
+        ColumnSpec: Text;
+        FilterSpec: Text;
+        LinkSpec: Text;
+        TokenText: Text;
+    begin
+        Advance(); // Skip 'dataitem'
+
+        if not ConsumeToken('(') then begin
+            SetError('Expected ( after dataitem');
+            exit(false);
+        end;
+
+        if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+            SetError('Expected dataitem name');
+            exit(false);
+        end;
+        DataItemName := GetCurrentToken();
+        Advance();
+
+        if not ConsumeToken(';') then begin
+            SetError('Expected ; after dataitem name ' + DataItemName);
+            exit(false);
+        end;
+
+        if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'STRING') and (GetCurrentTokenType() <> 'KEYWORD') then begin
+            SetError('Expected table name for dataitem ' + DataItemName);
+            exit(false);
+        end;
+        TableName := GetCurrentToken();
+        Advance();
+
+        if not ConsumeToken(')') then begin
+            SetError('Expected ) after dataitem declaration ' + DataItemName);
+            exit(false);
+        end;
+
+        if not ConsumeToken('{') then begin
+            SetError('Expected { to start dataitem ' + DataItemName);
+            exit(false);
+        end;
+
+        Clear(ColumnDefinitions);
+        Clear(FilterDefinitions);
+        Clear(LinkDefinitions);
+
+        while CurrentTokenIndex <= TokenList.Count do begin
+            if GetCurrentToken() = '}' then
+                break;
+
+            TokenText := LowerCase(GetCurrentToken());
+
+            case TokenText of
+                'column':
+                    begin
+                        if not ParseQueryColumn(ColumnDefinitions) then
+                            exit(false);
+                        continue;
+                    end;
+                'filter':
+                    begin
+                        if not ParseQueryFilter(FilterDefinitions) then
+                            exit(false);
+                        continue;
+                    end;
+                'dataitemlink':
+                    begin
+                        if not ParseQueryDataItemLink(LinkDefinitions) then
+                            exit(false);
+                        continue;
+                    end;
+                'dataitem':
+                    begin
+                        if not ParseQueryDataItem(DataItemName, DataItemDefinitions) then
+                            exit(false);
+                        continue;
+                    end;
+            end;
+
+            if GetCurrentToken() = ';' then begin
+                Advance();
+                continue;
+            end;
+
+            if PeekNextToken('=') then begin
+                Advance(); // Skip property name
+                Advance(); // Skip '='
+                while (CurrentTokenIndex <= TokenList.Count) and (GetCurrentToken() <> ';') do
+                    Advance();
+                ConsumeSemicolon();
+                continue;
+            end;
+
+            Advance();
+        end;
+
+        if not ConsumeToken('}') then begin
+            SetError('Expected } to close dataitem ' + DataItemName);
+            exit(false);
+        end;
+
+        if ColumnDefinitions.Count = 0 then begin
+            SetError('Dataitem ' + DataItemName + ' must define at least one column');
+            exit(false);
+        end;
+
+        ColumnSpec := JoinWithSeparator(ColumnDefinitions, ',');
+        FilterSpec := JoinWithSeparator(FilterDefinitions, ',');
+        LinkSpec := JoinWithSeparator(LinkDefinitions, ',');
+
+        DataItemDefinitions.Add(DataItemName + '|' + TableName + '|' + ColumnSpec + '|' + FilterSpec + '|' + ParentName + '|' + LinkSpec);
+        exit(true);
+    end;
+
+    local procedure ParseQueryDataItemLink(var LinkDefinitions: List of [Text]): Boolean
+    var
+        FieldName: Text;
+        ParentAlias: Text;
+        ParentField: Text;
+        Definition: Text;
+    begin
+        Advance(); // Skip 'dataitemlink'
+
+        if not ConsumeToken('=') then begin
+            SetError('Expected = after DataItemLink');
+            exit(false);
+        end;
+
+        repeat
+            if GetCurrentToken() = '}' then begin
+                SetError('Expected field mapping in DataItemLink');
+                exit(false);
+            end;
+
+            if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+                SetError('Expected field name in DataItemLink');
+                exit(false);
+            end;
+            FieldName := GetCurrentToken();
+            Advance();
+
+            if not ConsumeToken('=') then begin
+                SetError('Expected = in DataItemLink mapping');
+                exit(false);
+            end;
+
+            ParentAlias := '';
+            ParentField := '';
+
+            if GetCurrentTokenType() in ['IDENTIFIER', 'KEYWORD'] then begin
+                ParentAlias := GetCurrentToken();
+                Advance();
+                if GetCurrentToken() = '.' then begin
+                    Advance();
+                end else begin
+                    ParentField := ParentAlias;
+                    ParentAlias := '';
+                end;
+            end;
+
+            if ParentField = '' then begin
+                if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+                    SetError('Expected parent field name in DataItemLink');
+                    exit(false);
+                end;
+                ParentField := GetCurrentToken();
+                Advance();
+            end;
+
+            Definition := FieldName + '=' + ParentField;
+            LinkDefinitions.Add(Definition);
+
+            if GetCurrentToken() = ',' then begin
+                Advance();
+                continue;
+            end;
+
+            break;
+        until false;
+
+        ConsumeSemicolon();
+        exit(true);
+    end;
+
+    local procedure ParseQueryColumn(var ColumnDefinitions: List of [Text]): Boolean
+    var
+        ColumnName: Text;
+        FieldName: Text;
+        Definition: Text;
+    begin
+        Advance(); // Skip 'column'
+
+        if not ConsumeToken('(') then begin
+            SetError('Expected ( after column');
+            exit(false);
+        end;
+
+        if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+            SetError('Expected column name');
+            exit(false);
+        end;
+        ColumnName := GetCurrentToken();
+        Advance();
+
+        if not ConsumeToken(';') then begin
+            SetError('Expected ; after column name ' + ColumnName);
+            exit(false);
+        end;
+
+        if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'STRING') then begin
+            SetError('Expected field name for column ' + ColumnName);
+            exit(false);
+        end;
+        FieldName := GetCurrentToken();
+        Advance();
+
+        if not ConsumeToken(')') then begin
+            SetError('Expected ) after column ' + ColumnName);
+            exit(false);
+        end;
+
+        if GetCurrentToken() = '{' then begin
+            if not SkipCurlyBlock() then
+                exit(false);
+        end;
+
+        Definition := ColumnName + ':' + FieldName;
+        ColumnDefinitions.Add(Definition);
+        exit(true);
+    end;
+
+    local procedure ParseQueryFilter(var FilterDefinitions: List of [Text]): Boolean
+    var
+        FieldName: Text;
+        FilterValue: Text;
+        Definition: Text;
+    begin
+        Advance(); // Skip 'filter'
+
+        if not ConsumeToken('(') then begin
+            SetError('Expected ( after filter');
+            exit(false);
+        end;
+
+        if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+            SetError('Expected filter field name');
+            exit(false);
+        end;
+        FieldName := GetCurrentToken();
+        Advance();
+
+        if not ConsumeToken(';') then begin
+            SetError('Expected ; after filter field ' + FieldName);
+            exit(false);
+        end;
+
+        if GetCurrentToken() in ['(', ')'] then begin
+            SetError('Expected filter value for field ' + FieldName);
+            exit(false);
+        end;
+
+        FilterValue := GetCurrentToken();
+        Advance();
+
+        if not ConsumeToken(')') then begin
+            SetError('Expected ) after filter definition for field ' + FieldName);
+            exit(false);
+        end;
+
+        if GetCurrentToken() = '{' then begin
+            if not SkipCurlyBlock() then
+                exit(false);
+        end;
+
+        Definition := FieldName + '=' + FilterValue;
+        FilterDefinitions.Add(Definition);
+        exit(true);
+    end;
+
+    local procedure SkipCurlyBlock(): Boolean
+    var
+        Depth: Integer;
+    begin
+        if GetCurrentToken() <> '{' then
+            exit(true);
+
+        Depth := 0;
+
+        while CurrentTokenIndex <= TokenList.Count do begin
+            if GetCurrentToken() = '{' then begin
+                Depth += 1;
+                Advance();
+                continue;
+            end;
+
+            if GetCurrentToken() = '}' then begin
+                Depth -= 1;
+                Advance();
+                if Depth = 0 then
+                    exit(true);
+                continue;
+            end;
+
+            Advance();
+        end;
+
+        SetError('Expected } to close block');
+        exit(false);
+    end;
+
+    local procedure RegisterQuery(QueryName: Text; QueryDefinition: Text): Boolean
+    begin
+        if HasQuery(QueryName) then begin
+            SetError('Query already defined: ' + QueryName);
+            exit(false);
+        end;
+
+        QueryNames.Add(QueryName);
+        QueryDefinitions.Add(QueryDefinition);
+        exit(true);
+    end;
+
+    local procedure HasQuery(QueryName: Text): Boolean
+    begin
+        exit(GetQueryIndex(QueryName) > 0);
+    end;
+
+    local procedure GetQueryIndex(QueryName: Text): Integer
+    var
+        i: Integer;
+    begin
+        for i := 1 to QueryNames.Count do begin
+            if LowerCase(QueryNames.Get(i)) = LowerCase(QueryName) then
+                exit(i);
+        end;
+        exit(0);
+    end;
+
+    local procedure ExecuteStoredQuery(QueryName: Text): Boolean
+    var
+        QueryIdx: Integer;
+        QueryDefinition: Text;
+    begin
+        QueryIdx := GetQueryIndex(QueryName);
+        if QueryIdx = 0 then begin
+            SetError('Query not found: ' + QueryName);
+            exit(false);
+        end;
+
+        QueryDefinition := QueryDefinitions.Get(QueryIdx);
+        exit(ExecuteQueryDefinition(QueryName, QueryDefinition));
+    end;
+
+    local procedure ExecuteQueryDefinition(QueryName: Text; QueryDefinition: Text): Boolean
+    var
+        TypeHelper: Codeunit "Type Helper";
+        DefinitionEntries: List of [Text];
+        Parts: List of [Text];
+        Entry: Text;
+        DataItemNames: List of [Text];
+        DataItemTables: List of [Text];
+        DataItemColumns: List of [Text];
+        DataItemFilters: List of [Text];
+        DataItemParents: List of [Text];
+        DataItemLinks: List of [Text];
+        RootRecRef: RecordRef;
+        i: Integer;
+    begin
+        if QueryDefinition = '' then begin
+            SetError('Query definition is empty for ' + QueryName);
+            exit(false);
+        end;
+
+        DefinitionEntries := QueryDefinition.Split(TypeHelper.LFSeparator());
+
+        for i := 1 to DefinitionEntries.Count do begin
+            Entry := DefinitionEntries.Get(i);
+            if Entry = '' then
+                continue;
+
+            Parts := Entry.Split('|');
+            if Parts.Count < 4 then begin
+                SetError('Invalid query definition encountered');
+                exit(false);
+            end;
+
+            DataItemNames.Add(Parts.Get(1));
+            DataItemTables.Add(Parts.Get(2));
+            DataItemColumns.Add(Parts.Get(3));
+
+            if Parts.Count >= 4 then
+                DataItemFilters.Add(Parts.Get(4))
+            else
+                DataItemFilters.Add('');
+
+            if Parts.Count >= 5 then
+                DataItemParents.Add(Parts.Get(5))
+            else
+                DataItemParents.Add('');
+
+            if Parts.Count >= 6 then
+                DataItemLinks.Add(Parts.Get(6))
+            else
+                DataItemLinks.Add('');
+        end;
+
+        for i := 1 to DataItemNames.Count do begin
+            if DataItemParents.Get(i) = '' then
+                if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, i, RootRecRef, 0) then
+                    exit(false);
+        end;
+
+        exit(true);
+    end;
+
+    local procedure ExecuteQueryDataItemRecursive(QueryName: Text; var DataItemNames: List of [Text]; var DataItemTables: List of [Text]; var DataItemColumns: List of [Text]; var DataItemFilters: List of [Text]; var DataItemParents: List of [Text]; var DataItemLinks: List of [Text]; DataItemIndex: Integer; var ParentRecRef: RecordRef; Level: Integer): Boolean
+    var
+        DataItemName: Text;
+        TableName: Text;
+        ColumnSpec: Text;
+        FilterSpec: Text;
+        LinkSpec: Text;
+        TableId: Integer;
+        RecRef: RecordRef;
+        ColumnEntries: List of [Text];
+        ColumnEntry: Text;
+        ColumnParts: List of [Text];
+        ColumnNames: List of [Text];
+        ColumnFields: List of [Text];
+        ColumnValues: List of [Text];
+        FilterEntries: List of [Text];
+        FilterEntry: Text;
+        FilterField: Text;
+        FilterValue: Text;
+        LinkEntries: List of [Text];
+        LinkEntry: Text;
+        LinkField: Text;
+        LinkParentField: Text;
+        ParentFieldNo: Integer;
+        ParentFieldRef: FieldRef;
+        FieldNo: Integer;
+        FieldRef: FieldRef;
+        TypeHelper: Codeunit "Type Helper";
+        LF: Text;
+        HeaderContent: Text;
+        SeparatorLine: Text;
+        RowLine: Text;
+        i: Integer;
+        ChildIndex: Integer;
+        Indent: Text;
+    begin
+        DataItemName := DataItemNames.Get(DataItemIndex);
+        TableName := DataItemTables.Get(DataItemIndex);
+        ColumnSpec := DataItemColumns.Get(DataItemIndex);
+        FilterSpec := DataItemFilters.Get(DataItemIndex);
+        LinkSpec := DataItemLinks.Get(DataItemIndex);
+
+        TableId := GetTableIdByName(TableName);
+        if TableId = 0 then begin
+            SetError('Table not found or not supported: ' + TableName);
+            exit(false);
+        end;
+
+        RecRef.Open(TableId);
+        RecRef.Reset();
+
+        if FilterSpec <> '' then begin
+            FilterEntries := FilterSpec.Split(',');
+            for i := 1 to FilterEntries.Count do begin
+                FilterEntry := FilterEntries.Get(i);
+                if FilterEntry = '' then
+                    continue;
+
+                FilterField := FilterEntry.Split('=').Get(1);
+                FilterValue := FilterEntry.Split('=').Get(2);
+                if not SetRecordFilter(RecRef, FilterField, FilterValue) then begin
+                    RecRef.Close();
+                    exit(false);
+                end;
+            end;
+        end;
+
+        if (DataItemParents.Get(DataItemIndex) <> '') then begin
+            if (Level = 0) or (ParentRecRef.Number = 0) then begin
+                RecRef.Close();
+                exit(true);
+            end;
+
+            if LinkSpec <> '' then begin
+                LinkEntries := LinkSpec.Split(',');
+                for i := 1 to LinkEntries.Count do begin
+                    LinkEntry := LinkEntries.Get(i);
+                    if LinkEntry = '' then
+                        continue;
+
+                    LinkField := LinkEntry.Split('=').Get(1);
+                    LinkParentField := LinkEntry.Split('=').Get(2);
+
+                    ParentFieldNo := GetFieldNumber(ParentRecRef, LinkParentField);
+                    if ParentFieldNo = 0 then begin
+                        RecRef.Close();
+                        SetError('Field not found on parent dataitem: ' + LinkParentField);
+                        exit(false);
+                    end;
+
+                    ParentFieldRef := ParentRecRef.Field(ParentFieldNo);
+                    FilterValue := Format(ParentFieldRef.Value);
+
+                    if not SetRecordFilter(RecRef, LinkField, FilterValue) then begin
+                        RecRef.Close();
+                        exit(false);
+                    end;
+                end;
+            end;
+        end;
+
+        ColumnEntries := ColumnSpec.Split(',');
+        for i := 1 to ColumnEntries.Count do begin
+            ColumnEntry := ColumnEntries.Get(i);
+            if ColumnEntry = '' then
+                continue;
+
+            ColumnParts := ColumnEntry.Split(':');
+            if ColumnParts.Count = 0 then
+                continue;
+
+            ColumnNames.Add(ColumnParts.Get(1));
+            if ColumnParts.Count >= 2 then
+                ColumnFields.Add(ColumnParts.Get(2))
+            else
+                ColumnFields.Add(ColumnParts.Get(1));
+        end;
+
+        LF := TypeHelper.LFSeparator();
+        Indent := PadStr('', Level * 2, ' ');
+
+        HeaderContent := JoinWithSeparator(ColumnNames, ' | ');
+        if HeaderContent <> '' then begin
+            ExecutionOutput += Indent + HeaderContent + LF;
+            SeparatorLine := CreateSeparatorLine(StrLen(HeaderContent));
+            if SeparatorLine <> '' then
+                ExecutionOutput += Indent + SeparatorLine + LF;
+        end;
+
+        if RecRef.FindSet() then begin
+            repeat
+                Clear(ColumnValues);
+                for i := 1 to ColumnFields.Count do begin
+                    FilterField := ColumnFields.Get(i);
+                    FieldNo := GetFieldNumber(RecRef, FilterField);
+                    if FieldNo = 0 then begin
+                        RecRef.Close();
+                        SetError('Field not found: ' + FilterField);
+                        exit(false);
+                    end;
+
+                    FieldRef := RecRef.Field(FieldNo);
+                    if FieldRef.Class = FieldRef.Class::FlowField then
+                        FieldRef.CalcField();
+                    ColumnValues.Add(Format(FieldRef.Value));
+                end;
+
+                RowLine := JoinWithSeparator(ColumnValues, ' | ');
+                ExecutionOutput += Indent + RowLine + LF;
+
+                for ChildIndex := 1 to DataItemNames.Count do begin
+                    if LowerCase(DataItemParents.Get(ChildIndex)) = LowerCase(DataItemName) then
+                        if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, ChildIndex, RecRef, Level + 1) then begin
+                            RecRef.Close();
+                            exit(false);
+                        end;
+                end;
+            until RecRef.Next() = 0;
+        end else
+            ExecutionOutput += Indent + '(no rows)' + LF;
+
+        ExecutionOutput += LF;
+        RecRef.Close();
+        exit(true);
+    end;
+
+    local procedure JoinWithSeparator(Values: List of [Text]; Separator: Text): Text
+    var
+        ResultText: Text;
+        i: Integer;
+    begin
+        ResultText := '';
+
+        for i := 1 to Values.Count do begin
+            if ResultText <> '' then
+                ResultText += Separator;
+            ResultText += Values.Get(i);
+        end;
+
+        exit(ResultText);
+    end;
+
+    local procedure CreateSeparatorLine(TargetLength: Integer): Text
+    begin
+        if TargetLength <= 0 then
+            exit('');
+        exit(PadStr('', TargetLength, '-'));
+    end;
+
+    #endregion
 }

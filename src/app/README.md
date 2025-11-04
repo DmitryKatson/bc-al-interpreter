@@ -69,6 +69,26 @@ The interpreter recognises user-defined procedures with positional parameters, l
 | Case statement | `case Expression of Value: Statement [else Statements] end;` | `case Status of 1: Result := 'One'; else Result := 'Other'; end;` | Supports text and numeric values; nested cases supported |
 | Exit / Break / Continue | `exit;` or `exit(Value);` | `exit;` or `exit(42);` | `exit` immediately returns the optional value; `break`/`continue` currently behave as no-ops |
 
+### Queries
+
+Declare inline query objects to shape datasets and stream their rows to the console. Each query supports a single dataitem with `column` and optional `filter` declarations. After defining the query, call `ExecuteQuery(<Name>)` to render the rows in a tabular layout.
+
+```al
+query CustomerList
+{
+  dataitem(Customer; Customer)
+  {
+    column(NoColumn; "No.")
+    column(NameColumn; Name)
+    filter("Blocked"; '<>All');
+  }
+}
+
+ExecuteQuery('CustomerList');
+```
+
+You can register additional `dataitem` blocks (including nested children) to mirror classic query hierarchies. Use `DataItemLink` to tie child dataitems to the parent record context; the interpreter applies the specified joins when iterating nested datasets.
+
 ### Expressions & Operators
 
 | Operator | Description | Example |
@@ -113,6 +133,7 @@ The interpreter recognises user-defined procedures with positional parameters, l
 | `Random(MaxValue)` | Random integer | `Random(100);` | Returns integer between 1 and MaxValue |
 | `Randomize([Seed])` | Initialize random generator | `Randomize(42);` | Optional seed parameter |
 | `Clear(Variable)` | Reset variable to default | `Clear(Counter);` | Variable must be declared |
+| `ExecuteQuery(QueryName)` | Runs a declared query and streams results to the console | `ExecuteQuery('CustomerList');` | Query must be defined earlier in the script |
 | `Error([Message])` | Raise error | `Error('Operation failed');` | Stops execution with error message |
 | `Commit()` | Commit transaction | `Commit();` | Simplified implementation |
 | `StrMenu(Options[, Default[, Instruction]])` | Show menu dialog | `StrMenu('Yes,No', 1);` | Returns selection index (simplified) |
@@ -187,6 +208,20 @@ Message('Slice: %1', Result);
 Message('Injected: %1', InsStr('World', 'Hello ', 1));
 ```
 
+### Query Execution
+```al
+query TopNumbers
+{
+  dataitem(NumberLoop; Integer)
+  {
+    column(Value; Number)
+    filter(Number; '1..5')
+  }
+}
+
+ExecuteQuery('TopNumbers');
+```
+
 ## Troubleshooting
 
 - **Table not found** – confirm the table exists in your Business Central environment and the current company grants access.
@@ -206,7 +241,8 @@ Message('Injected: %1', InsStr('World', 'Hello ', 1));
 - `StrMenu` and `Confirm` return simulated responses when run in console-only mode.
 - Procedures currently do not support overloads, nested declarations, or complex signature types (arrays, temporary records, enums with members, etc.).
 - File I/O, HTTP, and external system calls remain intentionally blocked.
-- Some advanced AL constructs (queries, interfaces, enums with members, events) are still unsupported—consult the Supported Syntax Overview for details.
+- Queries currently support a single dataitem with column and filter declarations; joins, totals, grouping, and dataitem links are not yet implemented.
+- Interfaces, enums with members, and events are still unsupported—consult the Supported Syntax Overview for details.
 
 ## Support & Contributions
 
