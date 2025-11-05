@@ -4067,7 +4067,6 @@ codeunit 50001 "Program Executor"
             end;
 
             // Parse filter or const expression
-            FilterOperator := '';
             FilterValue := '';
 
             case LowerCase(GetCurrentToken()) of
@@ -4079,7 +4078,6 @@ codeunit 50001 "Program Executor"
                             exit(false);
                         end;
 
-                        FilterValue := '';
                         if not CollectParenthesizedExpression(FilterValue) then begin
                             SetError('Invalid filter expression in DataItemTableFilter');
                             exit(false);
@@ -4092,7 +4090,6 @@ codeunit 50001 "Program Executor"
                     end;
                 'const':
                     begin
-                        FilterOperator := '=';
                         Advance();
                         if not ConsumeToken('(') then begin
                             SetError('Expected ( after const in DataItemTableFilter');
@@ -4154,7 +4151,7 @@ codeunit 50001 "Program Executor"
                 exit(false);
             end;
 
-            if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+            if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'KEYWORD') then begin
                 SetError('Expected field name in DataItemLink');
                 exit(false);
             end;
@@ -4181,7 +4178,7 @@ codeunit 50001 "Program Executor"
             end;
 
             if ParentField = '' then begin
-                if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+                if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'KEYWORD') then begin
                     SetError('Expected parent field name in DataItemLink');
                     exit(false);
                 end;
@@ -4225,7 +4222,7 @@ codeunit 50001 "Program Executor"
             exit(false);
         end;
 
-        if GetCurrentTokenType() <> 'IDENTIFIER' then begin
+        if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'KEYWORD') then begin
             SetError('Expected column name');
             exit(false);
         end;
@@ -4237,7 +4234,7 @@ codeunit 50001 "Program Executor"
             exit(false);
         end;
 
-        if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'STRING') then begin
+        if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'STRING') and (GetCurrentTokenType() <> 'KEYWORD') then begin
             SetError('Expected field name for column ' + ColumnName);
             exit(false);
         end;
