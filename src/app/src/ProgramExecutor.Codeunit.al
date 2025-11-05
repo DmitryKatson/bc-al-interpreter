@@ -4229,17 +4229,21 @@ codeunit 50001 "Program Executor"
         ColumnName := GetCurrentToken();
         Advance();
 
-        if not ConsumeToken(';') then begin
-            SetError('Expected ; after column name ' + ColumnName);
-            exit(false);
-        end;
+        FieldName := '';
 
-        if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'STRING') and (GetCurrentTokenType() <> 'KEYWORD') then begin
-            SetError('Expected field name for column ' + ColumnName);
-            exit(false);
+        if GetCurrentToken() <> ')' then begin
+            if not ConsumeToken(';') then begin
+                SetError('Expected ; after column name ' + ColumnName);
+                exit(false);
+            end;
+
+            if (GetCurrentTokenType() <> 'IDENTIFIER') and (GetCurrentTokenType() <> 'STRING') and (GetCurrentTokenType() <> 'KEYWORD') then begin
+                SetError('Expected field name for column ' + ColumnName);
+                exit(false);
+            end;
+            FieldName := GetCurrentToken();
+            Advance();
         end;
-        FieldName := GetCurrentToken();
-        Advance();
 
         if not ConsumeToken(')') then begin
             SetError('Expected ) after column ' + ColumnName);
@@ -4655,9 +4659,20 @@ codeunit 50001 "Program Executor"
         ColumnParts: List of [Text];
         ColumnNames: List of [Text];
         ColumnFields: List of [Text];
+        ColumnMethods: List of [Text];
         ColumnValues: List of [Text];
         ColumnFilterEntries: List of [Text];
         ColumnMethodEntries: List of [Text];
+        GroupColumnIndexes: List of [Integer];
+        AggregatorIndexes: List of [Integer];
+        AggregatorMethods: List of [Text];
+        AggregationKeys: List of [Text];
+        AggregationGroupData: List of [Text];
+        AggregationAggregateData: List of [Text];
+        AggregatorInitialParts: List of [Text];
+        GroupValues: List of [Text];
+        GroupParts: List of [Text];
+        AggParts: List of [Text];
         ColumnFilterExpr: Text;
         FilterEntries: List of [Text];
         FilterEntry: Text;
@@ -4683,6 +4698,19 @@ codeunit 50001 "Program Executor"
         i: Integer;
         ChildIndex: Integer;
         Indent: Text;
+        HasAggregation: Boolean;
+        KeyIndex: Integer;
+        AggregationKey: Text;
+        GroupDataString: Text;
+        CurrentAggString: Text;
+        MethodName: Text;
+        DecimalValue: Decimal;
+        DecimalAdd: Decimal;
+        ColumnMethod: Text;
+        ColumnIndex: Integer;
+        GroupIndex: Integer;
+        AggIndex: Integer;
+        AggregationSeparator: Text;
     begin
         DataItemName := DataItemNames.Get(DataItemIndex);
         TableName := DataItemTables.Get(DataItemIndex);
@@ -4799,6 +4827,33 @@ codeunit 50001 "Program Executor"
                 ColumnFields.Add(ColumnParts.Get(1));
         end;
 
+        Clear(ColumnMethods);
+        Clear(GroupColumnIndexes);
+        Clear(AggregatorIndexes);
+        Clear(AggregatorMethods);
+        HasAggregation := false;
+
+        Clear(ColumnMethodEntries);
+        if ColumnMethodSpec <> '' then
+            SplitTextPreserveEmpty(ColumnMethodSpec, ',', ColumnMethodEntries);
+
+        for i := 1 to ColumnFields.Count do begin
+            if ColumnMethodEntries.Count >= i then
+                ColumnMethod := DelChr(ColumnMethodEntries.Get(i), '=', ' ')
+            else
+                ColumnMethod := '';
+
+            ColumnMethods.Add(ColumnMethod);
+
+            if ColumnMethod = '' then
+                GroupColumnIndexes.Add(i)
+            else begin
+                HasAggregation := true;
+                AggregatorIndexes.Add(i);
+                AggregatorMethods.Add(ColumnMethod);
+            end;
+        end;
+
         if ColumnFilterSpec <> '' then begin
             ColumnFilterEntries := ColumnFilterSpec.Split(',');
             for i := 1 to ColumnFilterEntries.Count do begin
@@ -4829,6 +4884,156 @@ codeunit 50001 "Program Executor"
             SeparatorLine := CreateSeparatorLine(StrLen(HeaderContent));
             if SeparatorLine <> '' then
                 ExecutionOutput += Indent + SeparatorLine + LF;
+        end;
+
+        if HasAggregation then begin
+            AggregationSeparator := '|^|';
+            Clear(AggregationKeys);
+            Clear(AggregationGroupData);
+            Clear(AggregationAggregateData);
+
+            if RecRef.FindSet() then begin
+                repeat
+                    Clear(GroupValues);
+                    for GroupIndex := 1 to GroupColumnIndexes.Count do begin
+                        ColumnIndex := GroupColumnIndexes.Get(GroupIndex);
+                        FilterField := ColumnFields.Get(ColumnIndex);
+                        if FilterField = '' then
+                            GroupValues.Add('')
+                        else begin
+                            FieldNo := GetFieldNumber(RecRef, FilterField);
+                            if FieldNo = 0 then begin
+                                RecRef.Close();
+                                SetError('Field not found: ' + FilterField);
+                                exit(false);
+                            end;
+
+                            FieldRef := RecRef.Field(FieldNo);
+                            if FieldRef.Class = FieldRef.Class::FlowField then
+                                FieldRef.CalcField();
+                            GroupValues.Add(Format(FieldRef.Value));
+                        end;
+                    end;
+
+                    GroupDataString := JoinWithSeparator(GroupValues, AggregationSeparator);
+                    AggregationKey := Format(GroupColumnIndexes.Count, 0, 9) + '::' + GroupDataString;
+
+                    KeyIndex := GetListIndex(AggregationKeys, AggregationKey);
+                    if KeyIndex = 0 then begin
+                        AggregationKeys.Add(AggregationKey);
+                        AggregationGroupData.Add(GroupDataString);
+
+                        Clear(AggregatorInitialParts);
+                        for AggIndex := 1 to AggregatorIndexes.Count do
+                            AggregatorInitialParts.Add('0');
+
+                        if AggregatorIndexes.Count > 0 then
+                            AggregationAggregateData.Add(JoinWithSeparator(AggregatorInitialParts, AggregationSeparator))
+                        else
+                            AggregationAggregateData.Add('');
+
+                        KeyIndex := AggregationKeys.Count;
+                    end;
+
+                    if AggregatorIndexes.Count > 0 then begin
+                        Clear(AggParts);
+                        SplitTextPreserveEmpty(AggregationAggregateData.Get(KeyIndex), AggregationSeparator, AggParts);
+
+                        while AggParts.Count < AggregatorIndexes.Count do
+                            AggParts.Add('0');
+
+                        for AggIndex := 1 to AggregatorIndexes.Count do begin
+                            ColumnIndex := AggregatorIndexes.Get(AggIndex);
+                            ColumnMethod := AggregatorMethods.Get(AggIndex);
+                            MethodName := LowerCase(DelChr(ColumnMethod, '=', ' '));
+
+                            if AggParts.Count >= AggIndex then begin
+                                if not Evaluate(DecimalValue, AggParts.Get(AggIndex)) then
+                                    DecimalValue := 0;
+                            end else
+                                DecimalValue := 0;
+
+                            case MethodName of
+                                'count':
+                                    DecimalValue := DecimalValue + 1;
+                                'sum':
+                                    begin
+                                        FilterField := ColumnFields.Get(ColumnIndex);
+                                        if FilterField = '' then begin
+                                            RecRef.Close();
+                                            SetError('Method Sum requires a field for column ' + ColumnNames.Get(ColumnIndex));
+                                            exit(false);
+                                        end;
+
+                                        DecimalAdd := 0;
+                                        if not GetNumericFieldValue(RecRef, FilterField, DecimalAdd) then begin
+                                            RecRef.Close();
+                                            exit(false);
+                                        end;
+
+                                        DecimalValue := DecimalValue + DecimalAdd;
+                                    end;
+                                else begin
+                                    RecRef.Close();
+                                    SetError('Unsupported column method: ' + ColumnMethod);
+                                    exit(false);
+                                end;
+                            end;
+
+                            if AggParts.Count >= AggIndex then begin
+                                AggParts.RemoveAt(AggIndex);
+                                AggParts.Insert(AggIndex, Format(DecimalValue));
+                            end else
+                                AggParts.Add(Format(DecimalValue));
+                        end;
+
+                        AggregationAggregateData.RemoveAt(KeyIndex);
+                        AggregationAggregateData.Insert(KeyIndex, JoinWithSeparator(AggParts, AggregationSeparator));
+                    end;
+                until RecRef.Next() = 0;
+
+                if AggregationKeys.Count = 0 then
+                    ExecutionOutput += Indent + '(no rows)' + LF
+                else begin
+                    for KeyIndex := 1 to AggregationKeys.Count do begin
+                        Clear(GroupParts);
+                        Clear(AggParts);
+                        SplitTextPreserveEmpty(AggregationGroupData.Get(KeyIndex), AggregationSeparator, GroupParts);
+                        SplitTextPreserveEmpty(AggregationAggregateData.Get(KeyIndex), AggregationSeparator, AggParts);
+
+                        Clear(ColumnValues);
+                        GroupIndex := 1;
+                        AggIndex := 1;
+
+                        for i := 1 to ColumnFields.Count do begin
+                            ColumnMethod := ColumnMethods.Get(i);
+                            MethodName := LowerCase(DelChr(ColumnMethod, '=', ' '));
+
+                            if MethodName = '' then begin
+                                if GroupIndex <= GroupParts.Count then
+                                    ColumnValues.Add(GroupParts.Get(GroupIndex))
+                                else
+                                    ColumnValues.Add('');
+                                GroupIndex += 1;
+                            end else begin
+                                if AggIndex <= AggParts.Count then
+                                    ColumnValues.Add(AggParts.Get(AggIndex))
+                                else
+                                    ColumnValues.Add('0');
+                                AggIndex += 1;
+                            end;
+                        end;
+
+                        RowLine := JoinWithSeparator(ColumnValues, ' | ');
+                        ExecutionOutput += Indent + RowLine + LF;
+                    end;
+                end;
+            end else
+                ExecutionOutput += Indent + '(no rows)' + LF;
+
+            ExecutionOutput += LF;
+            RecRef.Close();
+            exit(true);
         end;
 
         if RecRef.FindSet() then begin
@@ -4868,6 +5073,48 @@ codeunit 50001 "Program Executor"
         exit(true);
     end;
 
+    local procedure GetNumericFieldValue(var RecRef: RecordRef; FieldName: Text; var ResultValue: Decimal): Boolean
+    var
+        FieldRef: FieldRef;
+        FieldNo: Integer;
+        FieldType: FieldType;
+        FormatValue: Text;
+    begin
+        FieldNo := GetFieldNumber(RecRef, FieldName);
+        if FieldNo = 0 then begin
+            SetError('Field not found: ' + FieldName);
+            exit(false);
+        end;
+
+        FieldRef := RecRef.Field(FieldNo);
+        if FieldRef.Class = FieldRef.Class::FlowField then
+            FieldRef.CalcField();
+
+        FieldType := FieldRef.Type;
+
+        case FieldType of
+            FieldType::Integer,
+            FieldType::BigInteger,
+            FieldType::Decimal,
+            FieldType::Option:
+                ResultValue := FieldRef.Value;
+            FieldType::Boolean:
+                if FieldRef.Value then
+                    ResultValue := 1
+                else
+                    ResultValue := 0;
+            else begin
+                FormatValue := Format(FieldRef.Value, 0, 9);
+                if not Evaluate(ResultValue, FormatValue) then begin
+                    SetError('Cannot convert field ' + FieldName + ' to numeric value for aggregation');
+                    exit(false);
+                end;
+            end;
+        end;
+
+        exit(true);
+    end;
+
     local procedure JoinWithSeparator(Values: List of [Text]; Separator: Text): Text
     var
         ResultText: Text;
@@ -4892,4 +5139,54 @@ codeunit 50001 "Program Executor"
     end;
 
     #endregion
+
+    local procedure SplitTextPreserveEmpty(Value: Text; Separator: Text; var Result: List of [Text])
+    var
+        Remaining: Text;
+        Position: Integer;
+        SeparatorLength: Integer;
+        Segment: Text;
+    begin
+        Clear(Result);
+
+        if Separator = '' then begin
+            if Value <> '' then
+                Result.Add(Value);
+            exit;
+        end;
+
+        if Value = '' then
+            exit;
+
+        Remaining := Value;
+        SeparatorLength := StrLen(Separator);
+
+        while true do begin
+            Position := StrPos(Remaining, Separator);
+            if Position = 0 then begin
+                Result.Add(Remaining);
+                exit;
+            end;
+
+            Segment := CopyStr(Remaining, 1, Position - 1);
+            Result.Add(Segment);
+            Remaining := CopyStr(Remaining, Position + SeparatorLength);
+
+            if Remaining = '' then begin
+                Result.Add('');
+                exit;
+            end;
+        end;
+    end;
+
+    local procedure GetListIndex(var Values: List of [Text]; SearchValue: Text): Integer
+    var
+        idx: Integer;
+    begin
+        for idx := 1 to Values.Count do begin
+            if Values.Get(idx) = SearchValue then
+                exit(idx);
+        end;
+        exit(0);
+    end;
 }

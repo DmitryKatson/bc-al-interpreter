@@ -31,10 +31,18 @@ codeunit 50000 "Interactive Code Runner Impl"
                       '// Query example' + LF +
                       'query CustomerList' + LF +
                       '{' + LF +
-                      '  dataitem(Customer; Customer)' + LF +
+                      '  elements' + LF +
                       '  {' + LF +
-                      '    column(NoColumn; ""No."")' + LF +
-                      '    column(NameColumn; Name)' + LF +
+                      '    dataitem(Customer; Customer)' + LF +
+                      '    {' + LF +
+                      '      DataItemTableFilter = ""Blocked"" = filter(<> All);' + LF +
+                      '      column(NoColumn; ""No."")' + LF +
+                      '      {' + LF +
+                      '      }' + LF +
+                      '      column(NameColumn; Name)' + LF +
+                      '      {' + LF +
+                      '      }' + LF +
+                      '    }' + LF +
                       '  }' + LF +
                       '}' + LF +
                       LF +
@@ -90,8 +98,8 @@ codeunit 50000 "Interactive Code Runner Impl"
                     'Customer.Insert(true); Customer.Modify(true); Customer.Delete(true);' + LF + LF +
 
                     '--- Queries ---' + LF +
-                    'query CustomerList { dataitem(Customer; Customer) { column(NoColumn; ""No.""); column(NameColumn; Name); } }' + LF +
-                    'ExecuteQuery(''CustomerList''); // Runs the defined query and prints rows' + LF + LF +
+                    'query CustomerBalances { elements { dataitem(Customer; Customer) { DataItemTableFilter = ""Blocked"" = filter(<> All); column(NoColumn; ""No."") { } column(Balance; ""Balance (LCY)"") { Method = Sum; } } } }' + LF +
+                    'ExecuteQuery(''CustomerBalances''); // Supports nested dataitems, table filters, column filters, and Count/Sum aggregations' + LF + LF +
 
                     '--- String Functions ---' + LF +
                     'StrLen(Text), CopyStr(Text, Start, Length), UpperCase(Text), LowerCase(Text)' + LF +

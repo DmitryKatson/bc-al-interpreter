@@ -38,6 +38,7 @@ Each procedure follows a Given/When/Then comment style and uses `Program Executo
 - ✅ Control flow: `if`, `repeat until`, `for` (with `step`), `while`, `case` (with/without else, nested, in loops), block scoping, nested logic, `exit` (with/without return value), `break`, `continue`, procedure declarations/calls with typed parameters (including length qualifiers and `var` parameters), local `var` sections, and return-value propagation.
 - ✅ Built-in functions: Message placeholders, CopyStr, InsStr, StrLen, DelStr, Power, Min/Max, Round, Abs, Format, CreateGuid, CurrentDateTime, Today, Time, UserId, CompanyName, DMY2Date, Date2DMY, Date2DWY, CalcDate, WorkDate, Random, Randomize, Clear, Error, Commit, StrMenu, Confirm, Page.Run, Page.RunModal, Report.Run, Codeunit.Run.
 - ✅ Record operations: SetRange/SetFilter/GetFilter validation, CalcFields/CalcSums guards, LockTable, Count/CountApprox, IsEmpty, Next loops, Find (with operators), Init, ChangeCompany, Validate, TestField, ModifyAll, DeleteAll, Insert/Modify/Delete.
+- ✅ Query execution: inline definitions, nested dataitems with `DataItemLink`, `DataItemTableFilter`, `ColumnFilter`, and aggregation via `Method = Count` / `Method = Sum`, plus defensive checks for duplicates and formatting regressions.
 - ✅ Error scenarios: division by zero, undefined variables, missing arguments, unknown functions/methods, invalid fields, invalid operators.
 
 ## Naming & Style Guide

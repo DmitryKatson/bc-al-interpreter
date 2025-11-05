@@ -1,5 +1,5 @@
 // DEMO 9: Queries and Dataset Exploration
-// Define a query object at runtime and render the result set in the console
+// Define query objects at runtime and render the result set in the console
 
 query CustomerBalances
 {
@@ -14,9 +14,9 @@ query CustomerBalances
       column(NameColumn; Name)
       {
       }
-      column(BalanceLCY; "Balance (LCY)")
+      column(OpenBalanceLCY; "Balance (LCY)")
       {
-        ColumnFilter = BalanceLCY = filter(<> 0);
+        ColumnFilter = OpenBalanceLCY = filter(<> 0);
         Method = Sum;
       }
     }
@@ -24,11 +24,11 @@ query CustomerBalances
 }
 
 begin
-  Message('=== QUERY DEMO ===');
+  Message('=== CUSTOMER BALANCES (SUM BY CUSTOMER) ===');
   ExecuteQuery('CustomerBalances');
 end;
 
-// Nested dataitem example
+// Nested dataitem example with DataItemLink and table-level filters
 
 query SalesOrdersWithLines
 {
@@ -67,7 +67,31 @@ begin
   ExecuteQuery('SalesOrdersWithLines');
 end;
 
-// Bank account ledger linked to bank account
+// Column-level filters and aggregations
+
+query ItemLedgerEntryTypes
+{
+  elements
+  {
+    dataitem(ItemLedgerEntry; "Item Ledger Entry")
+    {
+      column(EntryType; "Entry Type")
+      {
+      }
+      column(EntryCount)
+      {
+        Method = Count;
+      }
+    }
+  }
+}
+
+begin
+  Message('=== ITEM LEDGER ENTRY COUNTS BY TYPE ===');
+  ExecuteQuery('ItemLedgerEntryTypes');
+end;
+
+// Bank account ledger linked to bank account master data
 
 query BankLedgerWithAccount
 {

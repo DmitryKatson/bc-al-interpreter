@@ -2348,5 +2348,107 @@ codeunit 80100 "Program Executor Tests"
         Assert.AreEqual(0, StrPos(ExecutionOutput, LF + '4' + LF), 'Table filter should exclude values outside range');
         Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
     end;
+
+    [Test]
+    procedure TestExecuteQueryWithColumnMethodCountOnly()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'query IntegerCountTotals' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1..3);' + LF +
+                '      column(CountAll)' + LF +
+                '      {' + LF +
+                '        Method = Count;' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerCountTotals'');';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Count query should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'CountAll') > 0, 'Count column header should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '3' + LF) > 0, 'Count column should include total count of rows');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryWithColumnMethodCountGrouped()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'query IntegerCountByNumber' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1..4);' + LF +
+                '      column(NumberValue; Number)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '      column(CountPerNumber)' + LF +
+                '      {' + LF +
+                '        Method = Count;' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerCountByNumber'');';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Grouped count query should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'NumberValue | CountPerNumber') > 0, 'Grouped count headers should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, '4 | 1') > 0, 'Grouped counts should include the highest number');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
+
+    [Test]
+    procedure TestExecuteQueryWithColumnMethodSum()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'query IntegerSumTotals' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1..3);' + LF +
+                '      column(TotalNumber; Number)' + LF +
+                '      {' + LF +
+                '        Method = Sum;' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerSumTotals'');';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Sum query should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'TotalNumber') > 0, 'Sum column header should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, '6') > 0, 'Sum column should include aggregated total');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
 }
 

@@ -71,23 +71,69 @@ The interpreter recognises user-defined procedures with positional parameters, l
 
 ### Queries
 
-Declare inline query objects to shape datasets and stream their rows to the console. Each query supports a single dataitem with `column` and optional `filter` declarations. After defining the query, call `ExecuteQuery(<Name>)` to render the rows in a tabular layout.
+- Declare inline query objects inside your script.
+- Use the `elements { ... }` block to describe dataitems, nested children, and columns.
+- Apply `DataItemTableFilter` for table-level filters and `ColumnFilter` for per-column filters.
+- Link child dataitems with `DataItemLink` to mirror Business Central query hierarchies.
+- Add `Method = Count;` or `Method = Sum;` to aggregate columns while grouping by non-aggregated columns.
+- Call `ExecuteQuery(<Name>)` to render the result in a clean tabular layout without internal labels.
 
 ```al
-query CustomerList
+query CustomerBalances
 {
-  dataitem(Customer; Customer)
+  elements
   {
-    column(NoColumn; "No.")
-    column(NameColumn; Name)
-    filter("Blocked"; '<>All');
+    dataitem(Customer; Customer)
+    {
+      DataItemTableFilter = "Blocked" = filter(<> All);
+      column(NoColumn; "No.")
+      {
+      }
+      column(NameColumn; Name)
+      {
+      }
+      column(OpenBalanceLCY; "Balance (LCY)")
+      {
+        ColumnFilter = OpenBalanceLCY = filter(<> 0);
+        Method = Sum;
+      }
+    }
   }
 }
 
-ExecuteQuery('CustomerList');
+ExecuteQuery('CustomerBalances');
 ```
 
-You can register additional `dataitem` blocks (including nested children) to mirror classic query hierarchies. Use `DataItemLink` to tie child dataitems to the parent record context; the interpreter applies the specified joins when iterating nested datasets.
+Nested dataitems are fully supported:
+
+```al
+query SalesOrdersWithLines
+{
+  elements
+  {
+    dataitem(SalesHeader; "Sales Header")
+    {
+      DataItemTableFilter = "Document Type" = const(Order);
+      column(OrderNo; "No.")
+      {
+      }
+
+      dataitem(SalesLines; "Sales Line")
+      {
+        DataItemLink = "Document No." = SalesHeader."No.";
+        column(LineNo; "Line No.")
+        {
+        }
+        column(Quantity; Quantity)
+        {
+        }
+      }
+    }
+  }
+}
+
+ExecuteQuery('SalesOrdersWithLines');
+```
 
 ### Expressions & Operators
 
@@ -210,16 +256,24 @@ Message('Injected: %1', InsStr('World', 'Hello ', 1));
 
 ### Query Execution
 ```al
-query TopNumbers
+query ItemLedgerEntryTypes
 {
-  dataitem(NumberLoop; Integer)
+  elements
   {
-    column(Value; Number)
-    filter(Number; '1..5')
+    dataitem(ItemLedgerEntry; "Item Ledger Entry")
+    {
+      column(EntryType; "Entry Type")
+      {
+      }
+      column(EntryCount)
+      {
+        Method = Count;
+      }
+    }
   }
 }
 
-ExecuteQuery('TopNumbers');
+ExecuteQuery('ItemLedgerEntryTypes');
 ```
 
 ## Troubleshooting
@@ -241,7 +295,7 @@ ExecuteQuery('TopNumbers');
 - `StrMenu` and `Confirm` return simulated responses when run in console-only mode.
 - Procedures currently do not support overloads, nested declarations, or complex signature types (arrays, temporary records, enums with members, etc.).
 - File I/O, HTTP, and external system calls remain intentionally blocked.
-- Queries currently support a single dataitem with column and filter declarations; joins, totals, grouping, and dataitem links are not yet implemented.
+- Query aggregation currently supports `Count` and `Sum` methods; additional methods will be introduced iteratively.
 - Interfaces, enums with members, and events are still unsupported—consult the Supported Syntax Overview for details.
 
 ## Support & Contributions
