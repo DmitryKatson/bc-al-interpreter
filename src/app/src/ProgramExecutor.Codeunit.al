@@ -4024,7 +4024,7 @@ codeunit 50001 "Program Executor"
         LinkSpec := JoinWithSeparator(LinkDefinitions, ',');
         TableFilterSpec := JoinWithSeparator(TableFilterDefinitions, ',');
 
-        DataItemDefinitions.Add(DataItemName + '|' + TableName + '|' + ColumnSpec + '|' + FilterSpec + '|' + ParentName + '|' + LinkSpec + '|' + TableFilterSpec + '|' + ColumnFilterSpec + '|' + ColumnMethodSpec);
+        DataItemDefinitions.Add(SerializeQueryDataItem(DataItemName, TableName, ColumnSpec, FilterSpec, ParentName, LinkSpec, TableFilterSpec, ColumnFilterSpec, ColumnMethodSpec));
         exit(true);
     end;
 
@@ -4592,8 +4592,8 @@ codeunit 50001 "Program Executor"
             if Entry = '' then
                 continue;
 
-            Parts := Entry.Split('|');
-            if Parts.Count < 4 then begin
+            Parts := Entry.Split(GetQueryPartSeparator());
+            if Parts.Count < 9 then begin
                 SetError('Invalid query definition encountered');
                 exit(false);
             end;
@@ -4601,36 +4601,12 @@ codeunit 50001 "Program Executor"
             DataItemNames.Add(Parts.Get(1));
             DataItemTables.Add(Parts.Get(2));
             DataItemColumns.Add(Parts.Get(3));
-
-            if Parts.Count >= 4 then
-                DataItemFilters.Add(Parts.Get(4))
-            else
-                DataItemFilters.Add('');
-
-            if Parts.Count >= 5 then
-                DataItemParents.Add(Parts.Get(5))
-            else
-                DataItemParents.Add('');
-
-            if Parts.Count >= 6 then
-                DataItemLinks.Add(Parts.Get(6))
-            else
-                DataItemLinks.Add('');
-
-            if Parts.Count >= 7 then
-                DataItemTableFilters.Add(Parts.Get(7))
-            else
-                DataItemTableFilters.Add('');
-
-            if Parts.Count >= 8 then
-                DataItemColumnFilters.Add(Parts.Get(8))
-            else
-                DataItemColumnFilters.Add('');
-
-            if Parts.Count >= 9 then
-                DataItemColumnMethods.Add(Parts.Get(9))
-            else
-                DataItemColumnMethods.Add('');
+            DataItemFilters.Add(Parts.Get(4));
+            DataItemParents.Add(Parts.Get(5));
+            DataItemLinks.Add(Parts.Get(6));
+            DataItemTableFilters.Add(Parts.Get(7));
+            DataItemColumnFilters.Add(Parts.Get(8));
+            DataItemColumnMethods.Add(Parts.Get(9));
         end;
 
         for i := 1 to DataItemNames.Count do begin
@@ -5188,5 +5164,33 @@ codeunit 50001 "Program Executor"
                 exit(idx);
         end;
         exit(0);
+    end;
+
+    local procedure SerializeQueryDataItem(DataItemName: Text; TableName: Text; ColumnSpec: Text; FilterSpec: Text; ParentName: Text; LinkSpec: Text; TableFilterSpec: Text; ColumnFilterSpec: Text; ColumnMethodSpec: Text): Text
+    var
+        Parts: List of [Text];
+        Separator: Text;
+    begin
+        Separator := GetQueryPartSeparator();
+
+        Parts.Add(DataItemName);
+        Parts.Add(TableName);
+        Parts.Add(ColumnSpec);
+        Parts.Add(FilterSpec);
+        Parts.Add(ParentName);
+        Parts.Add(LinkSpec);
+        Parts.Add(TableFilterSpec);
+        Parts.Add(ColumnFilterSpec);
+        Parts.Add(ColumnMethodSpec);
+
+        exit(JoinWithSeparator(Parts, Separator));
+    end;
+
+    local procedure GetQueryPartSeparator(): Text
+    var
+        SeparatorChar: Char;
+    begin
+        SeparatorChar := 30; // Record Separator control character
+        exit(Format(SeparatorChar));
     end;
 }

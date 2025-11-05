@@ -2450,5 +2450,40 @@ codeunit 80100 "Program Executor Tests"
         Assert.IsTrue(StrPos(ExecutionOutput, '6') > 0, 'Sum column should include aggregated total');
         Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
     end;
+
+    [Test]
+    procedure TestExecuteQueryWithDataItemTableFilterOrList()
+    var
+        Code: Text;
+        LF: Text;
+    begin
+        LF := TypeHelper.LFSeparator();
+
+        Code := 'query IntegerChoiceFilter' + LF +
+                '{' + LF +
+                '  elements' + LF +
+                '  {' + LF +
+                '    dataitem(NumberLoop; Integer)' + LF +
+                '    {' + LF +
+                '      DataItemTableFilter = Number = filter(1 | 3 | 5);' + LF +
+                '      column(Value; Number)' + LF +
+                '      {' + LF +
+                '      }' + LF +
+                '    }' + LF +
+                '  }' + LF +
+                '}' + LF +
+                LF +
+                'ExecuteQuery(''IntegerChoiceFilter'');';
+
+        ExecutionOutput := ProgramExecutor.ExecuteProgram(Code, true);
+
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Error:'), 'Query with OR filter should not produce errors');
+        Assert.IsTrue(StrPos(ExecutionOutput, 'Value') > 0, 'Column header should be printed');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '1' + LF) > 0, 'Filter should include first selected value');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '3' + LF) > 0, 'Filter should include middle selected value');
+        Assert.IsTrue(StrPos(ExecutionOutput, LF + '5' + LF) > 0, 'Filter should include last selected value');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, LF + '2' + LF), 'Filter should exclude values not listed');
+        Assert.AreEqual(0, StrPos(ExecutionOutput, 'Query '), 'Internal query labels should not be included');
+    end;
 }
 
