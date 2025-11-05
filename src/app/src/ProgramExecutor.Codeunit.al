@@ -15,6 +15,8 @@ codeunit 50001 "Program Executor"
         ActiveRecordRefs: array[10] of RecordRef;
         ActiveRecordRefNames: array[10] of Text[50];
         ActiveRecordRefCount: Integer;
+        QueryActiveRecRefs: array[32] of RecordRef;
+        QueryActiveRecNames: array[32] of Text[50];
         MaxVariables: Integer;
         ForceConsoleOnly: Boolean;
         ProcedureNames: List of [Text];
@@ -111,6 +113,11 @@ codeunit 50001 "Program Executor"
             Clear(ActiveRecordRefNames[i]);
         end;
         ActiveRecordRefCount := 0;
+
+        for i := 1 to ArrayLen(QueryActiveRecRefs) do begin
+            Clear(QueryActiveRecRefs[i]);
+            Clear(QueryActiveRecNames[i]);
+        end;
     end;
 
     #endregion
@@ -4186,7 +4193,11 @@ codeunit 50001 "Program Executor"
                 Advance();
             end;
 
-            Definition := FieldName + '=' + ParentField;
+            Definition := FieldName + '=';
+            if ParentAlias <> '' then
+                Definition += ParentAlias + '.' + ParentField
+            else
+                Definition += ParentField;
             LinkDefinitions.Add(Definition);
 
             if GetCurrentToken() = ',' then begin
@@ -4585,6 +4596,8 @@ codeunit 50001 "Program Executor"
             exit(false);
         end;
 
+        ResetQueryActiveRecRefs();
+
         DefinitionEntries := QueryDefinition.Split(TypeHelper.LFSeparator());
 
         for i := 1 to DefinitionEntries.Count do begin
@@ -4662,8 +4675,10 @@ codeunit 50001 "Program Executor"
         LinkEntry: Text;
         LinkField: Text;
         LinkParentField: Text;
+        LinkParentAlias: Text;
         ParentFieldNo: Integer;
         ParentFieldRef: FieldRef;
+        ParentAliasRecRef: RecordRef;
         FieldNo: Integer;
         FieldRef: FieldRef;
         TypeHelper: Codeunit "Type Helper";
@@ -4768,14 +4783,38 @@ codeunit 50001 "Program Executor"
                     LinkField := LinkEntry.Split('=').Get(1);
                     LinkParentField := LinkEntry.Split('=').Get(2);
 
-                    ParentFieldNo := GetFieldNumber(ParentRecRef, LinkParentField);
-                    if ParentFieldNo = 0 then begin
-                        RecRef.Close();
-                        SetError('Field not found on parent dataitem: ' + LinkParentField);
-                        exit(false);
+                    LinkParentAlias := '';
+                    if StrPos(LinkParentField, '.') > 0 then begin
+                        LinkParentAlias := CopyStr(LinkParentField, 1, StrPos(LinkParentField, '.') - 1);
+                        LinkParentField := CopyStr(LinkParentField, StrPos(LinkParentField, '.') + 1);
                     end;
 
-                    ParentFieldRef := ParentRecRef.Field(ParentFieldNo);
+                    if LinkParentAlias <> '' then begin
+                        if not TryGetQueryActiveRecRef(LinkParentAlias, ParentAliasRecRef) then begin
+                            RecRef.Close();
+                            SetError('Parent dataitem not active: ' + LinkParentAlias);
+                            exit(false);
+                        end;
+
+                        ParentFieldNo := GetFieldNumber(ParentAliasRecRef, LinkParentField);
+                        if ParentFieldNo = 0 then begin
+                            RecRef.Close();
+                            SetError('Field not found on parent dataitem: ' + LinkParentAlias + '.' + LinkParentField);
+                            exit(false);
+                        end;
+
+                        ParentFieldRef := ParentAliasRecRef.Field(ParentFieldNo);
+                    end else begin
+                        ParentFieldNo := GetFieldNumber(ParentRecRef, LinkParentField);
+                        if ParentFieldNo = 0 then begin
+                            RecRef.Close();
+                            SetError('Field not found on parent dataitem: ' + LinkParentField);
+                            exit(false);
+                        end;
+
+                        ParentFieldRef := ParentRecRef.Field(ParentFieldNo);
+                    end;
+
                     FilterValue := Format(ParentFieldRef.Value);
 
                     if not SetRecordFilter(RecRef, LinkField, FilterValue) then begin
@@ -4870,6 +4909,7 @@ codeunit 50001 "Program Executor"
 
             if RecRef.FindSet() then begin
                 repeat
+                    SetQueryActiveRecRef(DataItemIndex, DataItemName, RecRef);
                     Clear(GroupValues);
                     for GroupIndex := 1 to GroupColumnIndexes.Count do begin
                         ColumnIndex := GroupColumnIndexes.Get(GroupIndex);
@@ -4881,6 +4921,7 @@ codeunit 50001 "Program Executor"
                             if FieldNo = 0 then begin
                                 RecRef.Close();
                                 SetError('Field not found: ' + FilterField);
+                                ClearQueryActiveRecRef(DataItemIndex);
                                 exit(false);
                             end;
 
@@ -4938,12 +4979,14 @@ codeunit 50001 "Program Executor"
                                         if FilterField = '' then begin
                                             RecRef.Close();
                                             SetError('Method Sum requires a field for column ' + ColumnNames.Get(ColumnIndex));
+                                            ClearQueryActiveRecRef(DataItemIndex);
                                             exit(false);
                                         end;
 
                                         DecimalAdd := 0;
                                         if not GetNumericFieldValue(RecRef, FilterField, DecimalAdd) then begin
                                             RecRef.Close();
+                                            ClearQueryActiveRecRef(DataItemIndex);
                                             exit(false);
                                         end;
 
@@ -4952,6 +4995,7 @@ codeunit 50001 "Program Executor"
                                 else begin
                                     RecRef.Close();
                                     SetError('Unsupported column method: ' + ColumnMethod);
+                                    ClearQueryActiveRecRef(DataItemIndex);
                                     exit(false);
                                 end;
                             end;
@@ -4967,6 +5011,8 @@ codeunit 50001 "Program Executor"
                         AggregationAggregateData.Insert(KeyIndex, JoinWithSeparator(AggParts, AggregationSeparator));
                     end;
                 until RecRef.Next() = 0;
+
+                ClearQueryActiveRecRef(DataItemIndex);
 
                 if AggregationKeys.Count = 0 then
                     ExecutionOutput += Indent + '(no rows)' + LF
@@ -5014,6 +5060,7 @@ codeunit 50001 "Program Executor"
 
         if RecRef.FindSet() then begin
             repeat
+                SetQueryActiveRecRef(DataItemIndex, DataItemName, RecRef);
                 Clear(ColumnValues);
                 for i := 1 to ColumnFields.Count do begin
                     FilterField := ColumnFields.Get(i);
@@ -5021,6 +5068,7 @@ codeunit 50001 "Program Executor"
                     if FieldNo = 0 then begin
                         RecRef.Close();
                         SetError('Field not found: ' + FilterField);
+                        ClearQueryActiveRecRef(DataItemIndex);
                         exit(false);
                     end;
 
@@ -5037,10 +5085,12 @@ codeunit 50001 "Program Executor"
                     if LowerCase(DataItemParents.Get(ChildIndex)) = LowerCase(DataItemName) then
                         if not ExecuteQueryDataItemRecursive(QueryName, DataItemNames, DataItemTables, DataItemColumns, DataItemFilters, DataItemParents, DataItemLinks, DataItemTableFilters, DataItemColumnFilters, DataItemColumnMethods, ChildIndex, RecRef, Level + 1) then begin
                             RecRef.Close();
+                            ClearQueryActiveRecRef(DataItemIndex);
                             exit(false);
                         end;
                 end;
             until RecRef.Next() = 0;
+            ClearQueryActiveRecRef(DataItemIndex);
         end else
             ExecutionOutput += Indent + '(no rows)' + LF;
 
@@ -5192,5 +5242,62 @@ codeunit 50001 "Program Executor"
     begin
         SeparatorChar := 30; // Record Separator control character
         exit(Format(SeparatorChar));
+    end;
+
+    local procedure ExecuteQuery(QueryName: Text): Boolean
+    var
+        QueryIdx: Integer;
+        QueryDefinition: Text;
+    begin
+        QueryIdx := GetListIndex(QueryNames, QueryName);
+        if QueryIdx = 0 then begin
+            SetError('Query not defined: ' + QueryName);
+            exit(false);
+        end;
+        QueryDefinition := QueryDefinitions.Get(QueryIdx);
+        exit(ExecuteQueryDefinition(QueryName, QueryDefinition));
+    end;
+
+    local procedure ResetQueryActiveRecRefs()
+    var
+        i: Integer;
+        EmptyRecRef: RecordRef;
+    begin
+        for i := 1 to ArrayLen(QueryActiveRecRefs) do begin
+            QueryActiveRecRefs[i] := EmptyRecRef;
+            QueryActiveRecNames[i] := '';
+        end;
+    end;
+
+    local procedure SetQueryActiveRecRef(DataItemIndex: Integer; DataItemName: Text; var RecRef: RecordRef)
+    begin
+        if (DataItemIndex >= 1) and (DataItemIndex <= ArrayLen(QueryActiveRecRefs)) then begin
+            QueryActiveRecRefs[DataItemIndex] := RecRef;
+            QueryActiveRecNames[DataItemIndex] := CopyStr(DataItemName, 1, 50);
+        end;
+    end;
+
+    local procedure ClearQueryActiveRecRef(DataItemIndex: Integer)
+    var
+        EmptyRecRef: RecordRef;
+    begin
+        if (DataItemIndex >= 1) and (DataItemIndex <= ArrayLen(QueryActiveRecRefs)) then begin
+            QueryActiveRecRefs[DataItemIndex] := EmptyRecRef;
+            QueryActiveRecNames[DataItemIndex] := '';
+        end;
+    end;
+
+    local procedure TryGetQueryActiveRecRef(DataItemName: Text; var RecRef: RecordRef): Boolean
+    var
+        i: Integer;
+    begin
+        for i := 1 to ArrayLen(QueryActiveRecRefs) do begin
+            if (QueryActiveRecNames[i] <> '') and (LowerCase(QueryActiveRecNames[i]) = LowerCase(CopyStr(DataItemName, 1, 50))) then begin
+                RecRef := QueryActiveRecRefs[i];
+                exit(RecRef.Number <> 0);
+            end;
+        end;
+
+        exit(false);
     end;
 }
